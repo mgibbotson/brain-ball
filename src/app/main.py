@@ -6,18 +6,20 @@ import sys
 import time
 from src.lib.photoresistor.hardware import PhotoresistorHardware
 from src.lib.photoresistor.mock import PhotoresistorMock
+from src.lib.imu.mock import IMUMock
 from src.lib.lcd.hardware import LCDHardware
 from src.lib.lcd.mock import LCDMock
 from src.ui.desktop import UIDesktop
 from src.ui.device import UIDevice
 from src.app.light_interaction import LightInteraction
+from src.app.imu_interaction import IMUInteraction
 from src.lib import HardwareError
 from src.ui import UIError
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -30,14 +32,17 @@ def create_hardware(backend: str):
         backend: "desktop" or "device"
         
     Returns:
-        tuple: (photoresistor, lcd, ui) instances
+        tuple: (sensor, lcd, ui) instances
+        For desktop: (imu, lcd, ui) - uses IMU mock
+        For device: (photoresistor, lcd, ui) - uses real hardware
     """
     if backend == "desktop":
-        # Use mocks for desktop prototyping
-        logger.info("Using mock hardware for desktop prototyping")
-        photoresistor = PhotoresistorMock(initial_value=32768)
+        # Use IMU mock for desktop prototyping
+        logger.info("Using IMU mock for desktop prototyping")
+        imu = IMUMock()
         lcd = LCDMock()
         ui = UIDesktop()
+        return ("imu", imu, lcd, ui)
     elif backend == "device":
         # Use real hardware on device
         logger.info("Using real hardware for device deployment")
@@ -45,16 +50,16 @@ def create_hardware(backend: str):
             photoresistor = PhotoresistorHardware()
             lcd = LCDHardware()
             ui = UIDevice(lcd)
+            return ("photoresistor", photoresistor, lcd, ui)
         except HardwareError as e:
             logger.error(f"Hardware initialization failed: {e}")
             logger.info("Falling back to mock hardware")
             photoresistor = PhotoresistorMock()
             lcd = LCDMock()
             ui = UIDesktop()
+            return ("photoresistor", photoresistor, lcd, ui)
     else:
         raise ValueError(f"Unknown backend: {backend}")
-    
-    return photoresistor, lcd, ui
 
 
 def main():
@@ -72,7 +77,7 @@ def main():
     
     # Create hardware instances
     try:
-        photoresistor, lcd, ui = create_hardware(args.backend)
+        sensor_type, sensor, lcd, ui = create_hardware(args.backend)
     except Exception as e:
         logger.error(f"Failed to create hardware: {e}")
         sys.exit(1)
@@ -91,9 +96,12 @@ def main():
         logger.warning(f"LCD initialization failed: {e}")
         # Continue without LCD if it fails
     
-    # Create interaction logic
+    # Create interaction logic based on sensor type
     try:
-        interaction = LightInteraction(photoresistor=photoresistor, lcd=lcd)
+        if sensor_type == "imu":
+            interaction = IMUInteraction(imu=sensor)
+        else:
+            interaction = LightInteraction(photoresistor=sensor, lcd=lcd)
     except Exception as e:
         logger.error(f"Failed to create interaction: {e}")
         ui.cleanup()
@@ -108,9 +116,23 @@ def main():
             # Update UI (handle events for desktop backend)
             ui.update()
             
-            # Update display based on light sensor
+            # Update display based on sensor
             try:
-                interaction.update_display()
+                if sensor_type == "imu":
+                    # IMU interaction
+                    accel = interaction.update_acceleration()
+                    content = interaction.generate_display_content(accel)
+                    lcd.update_display(content)
+                    ui.render(content)
+                    logger.debug(f"Display: accel=({accel[0]:.2f}, {accel[1]:.2f}, {accel[2]:.2f})")
+                else:
+                    # Photoresistor interaction
+                    state = interaction.update_light_state()
+                    content = interaction.generate_display_content(state)
+                    lcd.update_display(content)
+                    if args.backend == "desktop":
+                        ui.render(content)
+                    logger.debug(f"Display: mode={content.mode}, value={state.value}")
             except HardwareError as e:
                 logger.warning(f"Hardware error (continuing): {e}")
                 # Continue running even if hardware fails

@@ -1,0 +1,11 @@
+# Hardware libraries
+adafruit-circuitpython-ili9341>=1.2.0
+adafruit-blinka>=8.0.0
+gpiozero>=1.6.2
+
+# UI for desktop prototyping
+pygame>=2.5.0
+
+# Testing
+pytest>=7.4.0
+pytest-mock>=3.12.0
