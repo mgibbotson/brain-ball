@@ -80,6 +80,10 @@ class UIDesktop(UIInterface):
             if image_data and image_width and image_height:
                 # Render pixel art image
                 self._render_pixel_art(content, surface=self._circle_surface)
+                # Render status indicator below the image if present
+                status_indicator = getattr(content, 'status_indicator', None)
+                if status_indicator:
+                    self._render_status_indicator(status_indicator, surface=self._circle_surface)
             elif content.mode == "imu" and content.text:
                 self._render_arrow(content, surface=self._circle_surface)
             elif content.text:
@@ -219,6 +223,40 @@ class UIDesktop(UIInterface):
         except Exception as e:
             # If rendering fails, just log and continue
             pass
+    
+    def _render_status_indicator(self, status: str, surface=None) -> None:
+        """Render a small status indicator icon below the main image.
+        
+        Args:
+            status: Status type ("listening" or "thinking")
+            surface: Pygame surface to render on (defaults to screen)
+        """
+        if surface is None:
+            surface = self._screen
+        
+        if status not in ("listening", "thinking"):
+            return
+        
+        try:
+            # Position indicator below the main image
+            # Main image is centered, so indicator goes below it
+            # Image is 16x16 scaled by 8 = 128x128 pixels
+            indicator_y = self.CIRCLE_CENTER_Y + (16 * 8) // 2 + 15  # Below 16x16 image scaled by 8
+            indicator_x = self.CIRCLE_CENTER_X
+            
+            # Draw a small dot/icon based on status
+            if status == "listening":
+                # Gray dot for listening
+                color = (128, 128, 128)
+                # Draw a small circle
+                pygame.draw.circle(surface, color, (indicator_x, indicator_y), 5)
+            elif status == "thinking":
+                # Orange/yellow dot for thinking
+                color = (255, 200, 0)
+                # Draw a small circle
+                pygame.draw.circle(surface, color, (indicator_x, indicator_y), 5)
+        except Exception as e:
+            pass  # Don't crash UI if indicator rendering fails
     
     def update(self) -> None:
         """Update Pygame display and handle events."""

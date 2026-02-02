@@ -446,26 +446,28 @@ def main():
                     logger.debug(f"Display: accel=({accel[0]:.2f}, {accel[1]:.2f}, {accel[2]:.2f})")
                 elif sensor_type == "mic" or sensor_type == "farm":
                     # Voice interaction
+                    # Show current status (listening) before processing
+                    content = interaction.generate_display_content()
+                    lcd.update_display(content)
+                    if args.backend == "desktop":
+                        ui.render(content)
+                    
+                    # Recognize word (this will update status to "processing" then "recognized" or back to "listening")
                     word = interaction.recognize_word()
+                    
+                    # Show updated status/content
                     if word:
                         content = interaction.generate_display_content(word)
-                        lcd.update_display(content)
-                        if args.backend == "desktop":
-                            ui.render(content)
-                        logger.debug(f"Display: word={word}, mode={content.mode}")
+                        logger.info(f"Display: word={word}, mode={content.mode}")
                     else:
-                        # No word recognized, show listening state
-                        # Only update display occasionally to avoid flicker
-                        # (update every 5th iteration = every 2.5 seconds)
-                        if not hasattr(interaction, '_listening_counter'):
-                            interaction._listening_counter = 0
-                        interaction._listening_counter += 1
-                        if interaction._listening_counter % 5 == 0:
-                            content = interaction.generate_display_content()
-                            lcd.update_display(content)
-                            if args.backend == "desktop":
-                                ui.render(content)
-                            logger.debug("Listening for speech...")
+                        content = interaction.generate_display_content()
+                        status = interaction.status if hasattr(interaction, 'status') else 'unknown'
+                        logger.debug(f"Status: {status}")
+                    
+                    lcd.update_display(content)
+                    if args.backend == "desktop":
+                        ui.render(content)
+                    
                     # Longer delay for voice recognition (2 second chunks)
                     time.sleep(0.1)  # Small delay, audio recording already takes 2 seconds
                 elif sensor_type == "button":

@@ -15,7 +15,8 @@ class DisplayContent:
         update_required: bool = True,
         image_data: list = None,
         image_width: int = None,
-        image_height: int = None
+        image_height: int = None,
+        status_indicator: str = None
     ):
         """
         Initialize DisplayContent.
@@ -29,6 +30,7 @@ class DisplayContent:
             image_data: Optional 2D array of RGB tuples [[(r, g, b), ...], ...] for pixel art
             image_width: Optional width of image in pixels
             image_height: Optional height of image in pixels
+            status_indicator: Optional status indicator ("listening", "thinking", or None)
             
         Raises:
             ValueError: If validation fails
@@ -72,3 +74,4 @@ class DisplayContent:
         self.image_data = image_data
         self.image_width = image_width
         self.image_height = image_height
+        self.status_indicator = status_indicator

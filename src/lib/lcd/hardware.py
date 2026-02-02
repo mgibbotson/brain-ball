@@ -92,6 +92,10 @@ class LCDHardware(LCDInterface):
             
             if image_data and image_width and image_height:
                 self._render_image(content)
+                # Render status indicator if present
+                status_indicator = getattr(content, 'status_indicator', None)
+                if status_indicator:
+                    self._render_status_indicator(status_indicator, image_width, image_height)
             # Render text if provided (and no image)
             elif content.text:
                 # Simple text rendering (would need font library for production)
@@ -154,3 +158,46 @@ class LCDHardware(LCDInterface):
                         pass
         except Exception as e:
             raise HardwareError(f"Failed to render image: {e}")
+    
+    def _render_status_indicator(self, status: str, image_width: int, image_height: int) -> None:
+        """Render a small status indicator icon below the main image.
+        
+        Args:
+            status: Status type ("listening" or "thinking")
+            image_width: Width of the main image
+            image_height: Height of the main image
+        """
+        if status not in ("listening", "thinking"):
+            return
+        
+        try:
+            display_width = 320
+            display_height = 240
+            
+            # Position indicator below the main image
+            image_start_x = (display_width - image_width) // 2
+            image_start_y = (display_height - image_height) // 2
+            indicator_y = image_start_y + image_height + 5
+            indicator_x = image_start_x + image_width // 2
+            
+            # Draw a small dot/icon based on status
+            if status == "listening":
+                # Gray dot for listening
+                color = self._rgb_to_565((128, 128, 128))
+                # Draw a small filled circle (3x3 pixels)
+                for y in range(-1, 2):
+                    for x in range(-1, 2):
+                        if x*x + y*y <= 2:  # Circle approximation
+                            if 0 <= indicator_x + x < display_width and 0 <= indicator_y + y < display_height:
+                                self._display.pixel(indicator_x + x, indicator_y + y, color)
+            elif status == "thinking":
+                # Orange/yellow dot for thinking
+                color = self._rgb_to_565((255, 200, 0))
+                # Draw a small filled circle (3x3 pixels)
+                for y in range(-1, 2):
+                    for x in range(-1, 2):
+                        if x*x + y*y <= 2:  # Circle approximation
+                            if 0 <= indicator_x + x < display_width and 0 <= indicator_y + y < display_height:
+                                self._display.pixel(indicator_x + x, indicator_y + y, color)
+        except Exception as e:
+            raise HardwareError(f"Failed to render status indicator: {e}")

@@ -48,6 +48,13 @@ class VoiceInteraction:
         
         # Current recognized word
         self.current_word = None
+        
+        # Last recognized image (to keep displaying)
+        self.last_image_key = None
+        self.last_image_data = None
+        
+        # Status tracking
+        self.status = "listening"  # "listening", "processing", "recognized"
     
     def _initialize_vosk(self):
         """Initialize Vosk speech recognition."""
@@ -91,6 +98,9 @@ class VoiceInteraction:
             self._initialize_vosk()
         
         try:
+            # Set status to listening
+            self.status = "listening"
+            
             # Record audio (2 second chunks for better recognition)
             audio_data = self.microphone.record_audio(2.0)
             expected_size = 16000 * 2 * 2  # 16kHz * 2 seconds * 2 bytes per sample
@@ -98,6 +108,12 @@ class VoiceInteraction:
             
             if len(audio_data) < expected_size * 0.5:
                 logger.warning(f"Audio data seems too short: {len(audio_data)} bytes")
+                self.status = "listening"
+                return None
+            
+            # Set status to processing
+            self.status = "processing"
+            logger.debug("Processing audio with Vosk...")
             
             # Process with Vosk
             if self._rec.AcceptWaveform(audio_data):
@@ -111,7 +127,18 @@ class VoiceInteraction:
                     if words:
                         word = words[0].lower()
                         self.current_word = word
+                        self.status = "recognized"
                         logger.info(f"✓ Recognized word: {word}")
+                        # Update last image when we recognize a new word
+                        if self.enable_images:
+                            image_key = self.find_closest_image(word)
+                            if image_key:
+                                try:
+                                    from src.app.pixel_art import get_pixel_art_image
+                                    self.last_image_data = get_pixel_art_image(image_key)
+                                    self.last_image_key = image_key
+                                except Exception as e:
+                                    logger.warning(f"Failed to load image for {image_key}: {e}")
                         return word
             else:
                 # Partial result
@@ -122,14 +149,30 @@ class VoiceInteraction:
                     words = text.split()
                     if words:
                         word = words[0].lower()
+                        self.current_word = word
+                        self.status = "recognized"
                         logger.info(f"Partial recognition: {word}")
+                        # Update last image when we recognize a new word
+                        if self.enable_images:
+                            image_key = self.find_closest_image(word)
+                            if image_key:
+                                try:
+                                    from src.app.pixel_art import get_pixel_art_image
+                                    self.last_image_data = get_pixel_art_image(image_key)
+                                    self.last_image_key = image_key
+                                except Exception as e:
+                                    logger.warning(f"Failed to load image for {image_key}: {e}")
                         return word
             
+            # No words recognized
+            self.current_word = None
+            self.status = "listening"
             logger.debug("No speech detected in audio chunk")
             return None
             
         except Exception as e:
             logger.error(f"Failed to recognize word: {e}", exc_info=True)
+            self.status = "listening"
             return None
     
     def find_closest_image(self, word: str) -> Optional[str]:
@@ -174,12 +217,44 @@ class VoiceInteraction:
             show_image = self.enable_images
         
         if not word:
-            # No word recognized - show default/empty state
+            # No word recognized - show last image with status indicator if available
+            if self.enable_images and self.last_image_data:
+                # Determine status indicator
+                status_indicator = None
+                if hasattr(self, 'status'):
+                    if self.status == "processing":
+                        status_indicator = "thinking"  # Orange/yellow indicator
+                    else:
+                        status_indicator = "listening"  # Gray indicator
+                
+                return DisplayContent(
+                    mode="voice",
+                    color=(255, 255, 255),
+                    background_color=(0, 0, 0),
+                    text=None,
+                    image_data=self.last_image_data,
+                    image_width=16,
+                    image_height=16,
+                    status_indicator=status_indicator
+                )
+            
+            # No image to show - show status text
+            status_text = "Listening..."
+            status_color = (128, 128, 128)  # Gray text
+            
+            if hasattr(self, 'status'):
+                if self.status == "processing":
+                    status_text = "Thinking..."
+                    status_color = (255, 200, 0)  # Orange/yellow for processing
+                else:
+                    status_text = "Listening..."
+                    status_color = (128, 128, 128)  # Gray for listening
+            
             return DisplayContent(
                 mode="voice",
-                color=(128, 128, 128),  # Gray text
+                color=status_color,
                 background_color=(32, 32, 32),  # Dark background
-                text="Listening..."
+                text=status_text
             )
         
         if show_image:
@@ -191,6 +266,10 @@ class VoiceInteraction:
                     from src.app.pixel_art import get_pixel_art_image
                     image_data = get_pixel_art_image(image_key)
                     if image_data:
+                        # Store for later display
+                        self.last_image_data = image_data
+                        self.last_image_key = image_key
+                        
                         return DisplayContent(
                             mode="voice",
                             color=(255, 255, 255),
@@ -198,7 +277,8 @@ class VoiceInteraction:
                             text=None,
                             image_data=image_data,
                             image_width=16,
-                            image_height=16
+                            image_height=16,
+                            status_indicator=None  # No indicator when word is recognized
                         )
                 except Exception as e:
                     logger.warning(f"Failed to load image for {image_key}: {e}")

@@ -109,15 +109,15 @@ def download_sprites(project_root: Path = None, verbose: bool = False, progress_
     
     # Animal name variations to try (base name + numbered variants)
     animal_name_variations = {
-        "cow": ["cow"],
-        "pig": ["pig"],
-        "chicken": ["chicken"],
-        "sheep": ["sheep"],
-        "horse": ["horse"],
-        "duck": ["duck"],
-        "goat": ["goat"],
-        "dog": ["dog", "dog2", "dog3", "dog4", "dog5"],
-        "cat": ["cat", "cat2"],
+        "cow": ["cow","Brown_Cow","White_Cow"],
+        "pig": ["pig","Pig"],
+        "chicken": ["chicken","Brown_Chicken","White_Chicken"],
+        "sheep": ["sheep","Sheep"],
+        "horse": ["horse","Horse"],
+        "duck": ["duck","Duck"],
+        "goat": ["goat","Goat"],
+        "dog": ["dog", "dog2", "dog3", "dog4", "dog5","Dog"],
+        "cat": ["cat", "cat2","Cat"],
     }
     
     # Try frame numbers from 0 to 30 (most sprites have frames in this range)
