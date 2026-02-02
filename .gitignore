@@ -43,3 +43,6 @@ htmlcov/
 
 # Vosk model (large download, users should download separately)
 vosk-model/
+
+# Stardew Valley sprites (users need to provide their own)
+sprites/

@@ -97,20 +97,30 @@ An interactive embedded device application where children interact with sensors 
    
    The `-e` flag installs the package in "editable" mode, allowing Python to find the `src` module.
 
-4. **Download Vosk speech recognition model** (required for voice features):
-   
-   **Using the download script** (recommended):
+4. **Download Stardew Valley sprites** (required for farm mode):
    ```bash
-   # Bash script (Linux/macOS)
-   ./scripts/download_vosk_model.sh
+   python scripts/download_sprites.py
+   ```
    
-   # Python script (cross-platform)
+   This attempts to download farm animal sprites from public repositories. If automatic download fails, you can:
+   - Extract sprites from your Stardew Valley game files (if you own the game)
+   - Manually place 16x16 PNG files in `sprites/FarmAnimals/` with filenames: `cow.png`, `pig.png`, `chicken.png`, `sheep.png`, `horse.png`, `duck.png`, `goat.png`
+   
+   **Note**: Stardew Valley sprites are copyrighted by ConcernedApe. Ensure you have rights to use them for your project.
+
+5. **Download Vosk speech recognition model** (required for voice features):
+   ```bash
    python scripts/download_vosk_model.py
    ```
    
    This downloads the lightweight `vosk-model-small-en-us-0.15` model (suitable for Raspberry Pi Zero W) to the `vosk-model/` directory.
    
    **Alternative**: If the scripts don't work, manually download from [Vosk Models](https://alphacephei.com/vosk/models) and extract to `vosk-model/` directory.
+
+**Sprite Assets**: The application expects Stardew Valley sprite PNG files (16x16 pixels) in the `sprites/FarmAnimals/` directory. You can:
+- Extract sprites from Stardew Valley game files (if you own the game)
+- Use sprite extraction tools or modding resources
+- The application will automatically resize sprites to 16x16 if needed
 
 ### Running the Application
 

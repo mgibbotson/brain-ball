@@ -146,20 +146,24 @@ class ImageEmbeddings:
 
 def create_farm_animal_embeddings() -> ImageEmbeddings:
     """
-    Create image embeddings for farm animals with their associated labels.
+    Create image embeddings for animals with their associated labels.
     
     Returns:
-        ImageEmbeddings: Initialized embedding system with farm animals registered
+        ImageEmbeddings: Initialized embedding system with animals registered
     """
     embeddings = ImageEmbeddings(threshold=0.4)  # Lower threshold for better matching
     
-    # Register farm animals with their labels
+    # Register animals with their labels
     # Each animal has multiple labels including their name and sounds
     embeddings.register_image("cow", ["cow", "cattle", "bovine", "moo", "mooing"])
     embeddings.register_image("pig", ["pig", "swine", "hog", "oink", "oinking", "snort"])
     embeddings.register_image("chicken", ["chicken", "hen", "rooster", "cluck", "clucking", "bawk"])
     embeddings.register_image("sheep", ["sheep", "lamb", "ewe", "ram", "baa", "baaing", "bleat"])
     embeddings.register_image("horse", ["horse", "pony", "mare", "stallion", "neigh", "whinny"])
+    embeddings.register_image("duck", ["duck", "drake", "quack", "quacking"])
+    embeddings.register_image("goat", ["goat", "kid", "bleat", "bleating"])
+    embeddings.register_image("dog", ["dog", "puppy", "pup", "woof", "bark", "barking"])
+    embeddings.register_image("cat", ["cat", "kitten", "kitty", "meow", "meowing", "purr"])
     
-    logger.info("Farm animal embeddings initialized")
+    logger.info("Animal embeddings initialized")
     return embeddings

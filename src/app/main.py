@@ -4,6 +4,9 @@ import argparse
 import logging
 import sys
 import time
+import os
+import importlib.util
+from pathlib import Path
 from src.lib.photoresistor.hardware import PhotoresistorHardware
 from src.lib.photoresistor.mock import PhotoresistorMock
 from src.lib.imu.mock import IMUMock
@@ -25,6 +28,184 @@ logging.basicConfig(
     format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Project root directory (parent of src/)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
+
+# Required animal types for farm mode (sprites organized in subdirectories)
+REQUIRED_ANIMAL_TYPES = [
+    "cow",
+    "pig",
+    "chicken",
+    "sheep",
+    "horse",
+    "duck",
+    "goat",
+    "dog",
+    "cat",
+]
+
+
+def check_vosk_model() -> bool:
+    """Check if Vosk model exists.
+    
+    Returns:
+        True if model exists, False otherwise.
+    """
+    model_file = PROJECT_ROOT / "vosk-model" / "am" / "final.mdl"
+    return model_file.exists()
+
+
+def check_sprites() -> bool:
+    """Check if all required animal types have sprites.
+    
+    Returns:
+        True if all animal types have at least one sprite, False otherwise.
+    """
+    sprites_dir = PROJECT_ROOT / "sprites" / "Animals"
+    if not sprites_dir.exists():
+        return False
+    
+    # Check if each animal type has at least one PNG file
+    for animal_type in REQUIRED_ANIMAL_TYPES:
+        animal_dir = sprites_dir / animal_type
+        if not animal_dir.exists() or not list(animal_dir.glob("*.png")):
+            return False
+    
+    return True
+
+
+def ensure_vosk_model() -> bool:
+    """Ensure Vosk model is downloaded, downloading if necessary.
+    
+    Returns:
+        True if model is available, False if download failed.
+    """
+    if check_vosk_model():
+        return True
+    
+    logger.info("Vosk model not found. Downloading...")
+    try:
+        # Dynamically import download function
+        script_path = PROJECT_ROOT / "scripts" / "download_vosk_model.py"
+        spec = importlib.util.spec_from_file_location("download_vosk_model", script_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Could not load download_vosk_model module")
+        
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        success = module.download_vosk_model(PROJECT_ROOT)
+        if success:
+            logger.info("Vosk model downloaded successfully")
+            return True
+        else:
+            logger.error("Failed to download Vosk model")
+            return False
+    except Exception as e:
+        logger.error(f"Error downloading Vosk model: {e}")
+        logger.info("Please run: python scripts/download_vosk_model.py")
+        return False
+
+
+def ensure_sprites() -> bool:
+    """Ensure sprites are downloaded, downloading if necessary.
+    
+    Returns:
+        True if all sprites are available, False if download failed.
+    """
+    return ensure_sprites_with_progress(project_root=PROJECT_ROOT, ui=None)
+
+
+def ensure_sprites_with_progress(project_root: Path = None, ui=None) -> bool:
+    """Ensure sprites are downloaded, downloading if necessary, with UI progress updates.
+    
+    Args:
+        project_root: Path to project root. If None, uses PROJECT_ROOT.
+        ui: Optional UI instance for progress updates (desktop backend only).
+    
+    Returns:
+        True if all sprites are available, False if download failed.
+    """
+    if project_root is None:
+        project_root = PROJECT_ROOT
+    
+    if check_sprites():
+        return True
+    
+    logger.info("Sprites not found. Downloading...")
+    try:
+        # Dynamically import download function
+        script_path = project_root / "scripts" / "download_sprites.py"
+        spec = importlib.util.spec_from_file_location("download_sprites", script_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Could not load download_sprites module")
+        
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        # Create a progress callback for UI updates
+        def progress_callback(animal_type: str, filename: str, status: str):
+            """Callback for download progress updates."""
+            logger.info(f"Downloading {animal_type}/{filename}... {status}")
+            if ui is not None:
+                try:
+                    from src.app.display_content import DisplayContent
+                    # Update UI with current download status
+                    progress_text = f"Downloading\n{animal_type}..."
+                    if status == "success":
+                        progress_text = f"Downloaded\n{animal_type}"
+                    elif status == "failed":
+                        progress_text = f"Failed\n{animal_type}"
+                    
+                    loading_content = DisplayContent(
+                        mode="voice",
+                        color=(255, 200, 0) if status != "success" else (0, 255, 0),
+                        background_color=(32, 32, 32),
+                        text=progress_text
+                    )
+                    ui.render(loading_content)
+                    ui.update()
+                except Exception:
+                    pass  # Don't fail if UI update fails
+        
+        # Use verbose=True to get better error messages in logs
+        success = module.download_sprites(project_root, verbose=True, progress_callback=progress_callback if ui else None)
+        
+        if success:
+            logger.info("All sprites are present")
+            if ui is not None:
+                try:
+                    from src.app.display_content import DisplayContent
+                    loading_content = DisplayContent(
+                        mode="voice",
+                        color=(0, 255, 0),  # Green text
+                        background_color=(32, 32, 32),
+                        text="Sprites\nready!"
+                    )
+                    ui.render(loading_content)
+                    ui.update()
+                    time.sleep(1)  # Show success message briefly
+                except Exception:
+                    pass
+            return True
+        else:
+            # Check how many animal types we actually have sprites for
+            sprites_dir = project_root / "sprites" / "Animals"
+            existing_count = sum(
+                1 for animal_type in REQUIRED_ANIMAL_TYPES
+                if (sprites_dir / animal_type).exists() and list((sprites_dir / animal_type).glob("*.png")))
+            if existing_count == 0:
+                logger.warning("No sprites found. Farm mode will not work.")
+                logger.info("Sprites will be downloaded automatically. Run: python scripts/download_sprites.py for manual download")
+            else:
+                logger.warning(f"Only {existing_count}/{len(REQUIRED_ANIMAL_TYPES)} animal types have sprites. Farm mode may not work correctly.")
+                logger.info("Run: python scripts/download_sprites.py to download missing sprites")
+            return False
+    except Exception as e:
+        logger.error(f"Error downloading sprites: {e}", exc_info=True)
+        logger.info("You can manually download sprites by running: python scripts/download_sprites.py")
+        return False
 
 
 def create_hardware(backend: str):
@@ -144,6 +325,45 @@ def main():
         )
         ui.render(loading_content)
         ui.update()  # Process events to show the screen
+    
+    # Check and download required resources for voice modes
+    if sensor_type == "mic" or sensor_type == "farm":
+        # Check Vosk model
+        if not check_vosk_model():
+            if args.backend == "desktop":
+                loading_content = DisplayContent(
+                    mode="voice",
+                    color=(255, 200, 0),  # Orange text
+                    background_color=(32, 32, 32),
+                    text="Downloading\nspeech model..."
+                )
+                ui.render(loading_content)
+                ui.update()
+            
+            if not ensure_vosk_model():
+                logger.error("Vosk model is required for voice features")
+                logger.info("Please run: python scripts/download_vosk_model.py")
+                sys.exit(1)
+        
+        # Check sprites for farm mode
+        if sensor_type == "farm":
+            if not check_sprites():
+                if args.backend == "desktop":
+                    loading_content = DisplayContent(
+                        mode="voice",
+                        color=(255, 200, 0),  # Orange text
+                        background_color=(32, 32, 32),
+                        text="Downloading\nsprites..."
+                    )
+                    ui.render(loading_content)
+                    ui.update()
+                
+                # Download sprites with progress updates
+                logger.info("Starting sprite download...")
+                if not ensure_sprites_with_progress(project_root=PROJECT_ROOT, ui=ui if args.backend == "desktop" else None):
+                    logger.warning("Some sprites may be missing. Farm mode may not work correctly.")
+                    logger.info("Please run: python scripts/download_sprites.py")
+                    # Continue anyway - some sprites might still work
     
     # Initialize microphone if in mic/farm mode
     if sensor_type == "mic" or sensor_type == "farm":
