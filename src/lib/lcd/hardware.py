@@ -1,7 +1,5 @@
 """Hardware implementation of LCDInterface for Adafruit ILI9341."""
 
-# Lazy import - only import when actually needed (on Raspberry Pi)
-
 from src.lib.lcd.interface import LCDInterface
 from src.lib import HardwareError
 from src.app.display_content import DisplayContent

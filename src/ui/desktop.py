@@ -1,5 +1,6 @@
 """Desktop UI backend using Pygame for prototyping."""
 
+import math
 try:
     import pygame
 except ImportError:
@@ -17,11 +18,18 @@ class UIDesktop(UIInterface):
     DISPLAY_WIDTH = 640
     DISPLAY_HEIGHT = 480
     
+    # Circular display parameters (matching ILI9341 circular viewport)
+    # Use the smaller dimension to ensure circle fits
+    CIRCLE_RADIUS = min(DISPLAY_WIDTH, DISPLAY_HEIGHT) // 2 - 20  # Leave some margin
+    CIRCLE_CENTER_X = DISPLAY_WIDTH // 2
+    CIRCLE_CENTER_Y = DISPLAY_HEIGHT // 2
+    
     def __init__(self):
         """Initialize desktop UI backend."""
         self._initialized = False
         self._screen = None
         self._clock = None
+        self._circle_surface = None
     
     def initialize(self) -> None:
         """Initialize Pygame display."""
@@ -33,12 +41,16 @@ class UIDesktop(UIInterface):
             self._screen = pygame.display.set_mode((self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT))
             pygame.display.set_caption("Interactive Kids Device - Desktop Prototype")
             self._clock = pygame.time.Clock()
+            
+            # Create circular surface for rendering content
+            self._circle_surface = pygame.Surface((self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT), pygame.SRCALPHA)
+            
             self._initialized = True
         except Exception as e:
             raise UIError(f"Failed to initialize Pygame: {e}")
     
     def render(self, content: DisplayContent) -> None:
-        """Render content to Pygame display."""
+        """Render content to Pygame display with circular viewport."""
         if not self._initialized:
             raise UIError("UI not initialized")
         if content is None:
@@ -47,35 +59,79 @@ class UIDesktop(UIInterface):
             raise ValueError("content must be DisplayContent instance")
         
         try:
-            # Fill background
-            bg_color = content.background_color
-            self._screen.fill(bg_color)
+            # Fill screen background (outside circle will be visible)
+            self._screen.fill((64, 64, 64))  # Dark gray background for outside circle
             
-            # Handle IMU mode - draw arrow
+            # Clear circular surface (transparent)
+            self._circle_surface.fill((0, 0, 0, 0))
+            
+            # Fill circular area with background color
+            bg_color = content.background_color
+            pygame.draw.circle(self._circle_surface, bg_color,
+                             (self.CIRCLE_CENTER_X, self.CIRCLE_CENTER_Y),
+                             self.CIRCLE_RADIUS)
+            
+            # Render content to circular surface
             if content.mode == "imu" and content.text:
-                self._render_arrow(content)
+                self._render_arrow(content, surface=self._circle_surface)
             elif content.text:
                 # Render text if provided
                 font = pygame.font.Font(None, 36)
                 text_color = content.color
                 text_surface = font.render(content.text, True, text_color)
-                text_rect = text_surface.get_rect(center=(self.DISPLAY_WIDTH // 2, self.DISPLAY_HEIGHT // 2))
-                self._screen.blit(text_surface, text_rect)
+                text_rect = text_surface.get_rect(center=(self.CIRCLE_CENTER_X, self.CIRCLE_CENTER_Y))
+                self._circle_surface.blit(text_surface, text_rect)
             else:
                 # Render mode indicator
                 font = pygame.font.Font(None, 48)
                 mode_text = content.mode.upper()
                 text_color = content.color
                 text_surface = font.render(mode_text, True, text_color)
-                text_rect = text_surface.get_rect(center=(self.DISPLAY_WIDTH // 2, self.DISPLAY_HEIGHT // 2))
-                self._screen.blit(text_surface, text_rect)
+                text_rect = text_surface.get_rect(center=(self.CIRCLE_CENTER_X, self.CIRCLE_CENTER_Y))
+                self._circle_surface.blit(text_surface, text_rect)
+            
+            # Create a mask to clip content to circle using pygame.mask
+            # Create a temporary surface with white circle for mask
+            mask_surface = pygame.Surface((self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT))
+            mask_surface.fill((0, 0, 0))  # Black background
+            pygame.draw.circle(mask_surface, (255, 255, 255),
+                             (self.CIRCLE_CENTER_X, self.CIRCLE_CENTER_Y),
+                             self.CIRCLE_RADIUS)
+            
+            # Create mask from surface
+            circle_mask = pygame.mask.from_surface(mask_surface)
+            
+            # Apply mask to circle_surface: set alpha to 0 outside circle
+            # Only process pixels in bounding box around circle for efficiency
+            bbox_left = max(0, self.CIRCLE_CENTER_X - self.CIRCLE_RADIUS - 5)
+            bbox_right = min(self.DISPLAY_WIDTH, self.CIRCLE_CENTER_X + self.CIRCLE_RADIUS + 5)
+            bbox_top = max(0, self.CIRCLE_CENTER_Y - self.CIRCLE_RADIUS - 5)
+            bbox_bottom = min(self.DISPLAY_HEIGHT, self.CIRCLE_CENTER_Y + self.CIRCLE_RADIUS + 5)
+            
+            for x in range(bbox_left, bbox_right):
+                for y in range(bbox_top, bbox_bottom):
+                    if not circle_mask.get_at((x, y)):
+                        # Outside circle - make transparent
+                        r, g, b, a = self._circle_surface.get_at((x, y))
+                        self._circle_surface.set_at((x, y), (r, g, b, 0))
+            
+            # Blit circular surface to main screen
+            self._screen.blit(self._circle_surface, (0, 0))
+            
+            # Draw black circle border to show display boundary
+            pygame.draw.circle(self._screen, (0, 0, 0),
+                             (self.CIRCLE_CENTER_X, self.CIRCLE_CENTER_Y),
+                             self.CIRCLE_RADIUS, width=3)
             
             pygame.display.flip()
         except Exception as e:
             raise UIError(f"Failed to render content: {e}")
     
-    def _render_arrow(self, content: DisplayContent) -> None:
+    def _render_arrow(self, content: DisplayContent, surface=None) -> None:
         """Render an arrow pointing in the acceleration direction."""
+        if surface is None:
+            surface = self._screen
+        
         # Parse direction info from text: "angle,dir_x,dir_y"
         try:
             parts = content.text.split(',')
@@ -86,9 +142,10 @@ class UIDesktop(UIInterface):
             # Fallback if parsing fails
             return
         
-        center_x = self.DISPLAY_WIDTH // 2
-        center_y = self.DISPLAY_HEIGHT // 2
-        arrow_length = 150  # Length of arrow in pixels
+        center_x = self.CIRCLE_CENTER_X
+        center_y = self.CIRCLE_CENTER_Y
+        # Scale arrow length to fit within circle (leave some margin)
+        arrow_length = self.CIRCLE_RADIUS * 0.6  # 60% of radius
         
         # Calculate arrow endpoint
         # Note: Pygame's y-axis is inverted (0 at top), so negate dir_y
@@ -97,10 +154,9 @@ class UIDesktop(UIInterface):
         
         # Draw arrow line
         arrow_color = content.color
-        pygame.draw.line(self._screen, arrow_color, (center_x, center_y), (end_x, end_y), 4)
+        pygame.draw.line(surface, arrow_color, (center_x, center_y), (end_x, end_y), 4)
         
         # Draw arrowhead (triangle)
-        import math
         arrowhead_size = 20
         angle_rad = math.radians(angle_deg)
         
@@ -121,7 +177,7 @@ class UIDesktop(UIInterface):
             (arrowhead_point1_x, arrowhead_point1_y),
             (arrowhead_point2_x, arrowhead_point2_y)
         ]
-        pygame.draw.polygon(self._screen, arrow_color, arrowhead_points)
+        pygame.draw.polygon(surface, arrow_color, arrowhead_points)
     
     def update(self) -> None:
         """Update Pygame display and handle events."""

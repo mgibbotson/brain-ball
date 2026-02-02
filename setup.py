@@ -9,7 +9,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.11",
     install_requires=[
-        "adafruit-circuitpython-ili9341>=1.2.0",
+        "adafruit-circuitpython-rgb-display>=2.2.0",
         "adafruit-blinka>=8.0.0",
         "gpiozero>=1.6.2",
         "pygame>=2.5.0",

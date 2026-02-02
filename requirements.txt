@@ -1,5 +1,5 @@
 # Hardware libraries
-adafruit-circuitpython-ili9341>=1.2.0
+adafruit-circuitpython-rgb-display>=2.2.0
 adafruit-blinka>=8.0.0
 gpiozero>=1.6.2
 

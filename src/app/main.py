@@ -71,9 +71,17 @@ def main():
         default="desktop",
         help="UI backend to use (default: desktop)"
     )
+    parser.add_argument(
+        "--test",
+        choices=["imu", "mic", "button"],
+        default="imu",
+        help="Test mode: select component to test (IMU, mic, or button)"
+    )
     args = parser.parse_args()
     
-    logger.info(f"Starting Interactive Kids Device - Backend: {args.backend}")
+    test_mode = args.test.lower() if args.test else None
+    logger.info(f"Starting Interactive Kids Device - Backend: {args.backend}" + 
+                (f", Test Mode: {args.test}" if args.test else ""))
     
     # Create hardware instances
     try:
@@ -81,6 +89,27 @@ def main():
     except Exception as e:
         logger.error(f"Failed to create hardware: {e}")
         sys.exit(1)
+    
+    # Override sensor type if test mode is specified
+    if test_mode:
+        if test_mode == "imu":
+            sensor_type = "imu"
+            if args.backend == "desktop":
+                sensor = IMUMock()
+            else:
+                # For device backend, would use real IMU hardware (not implemented yet)
+                logger.warning("Real IMU hardware not implemented, using mock")
+                sensor = IMUMock()
+        elif test_mode == "mic":
+            sensor_type = "mic"
+            logger.info("Microphone test mode - not yet implemented")
+            # TODO: Create microphone mock/hardware
+            sensor = None
+        elif test_mode == "button":
+            sensor_type = "button"
+            logger.info("Button test mode - not yet implemented")
+            # TODO: Create button mock/hardware
+            sensor = None
     
     # Initialize UI
     try:
@@ -97,10 +126,18 @@ def main():
         # Continue without LCD if it fails
     
     # Create interaction logic based on sensor type
+    interaction = None
     try:
         if sensor_type == "imu":
             interaction = IMUInteraction(imu=sensor)
+        elif sensor_type == "mic":
+            logger.warning("Microphone interaction not yet implemented")
+            # TODO: Create microphone interaction
+        elif sensor_type == "button":
+            logger.warning("Button interaction not yet implemented")
+            # TODO: Create button interaction
         else:
+            # Default to photoresistor/light interaction
             interaction = LightInteraction(photoresistor=sensor, lcd=lcd)
     except Exception as e:
         logger.error(f"Failed to create interaction: {e}")
@@ -118,6 +155,11 @@ def main():
             
             # Update display based on sensor
             try:
+                if interaction is None:
+                    logger.warning("No interaction logic available - skipping update")
+                    time.sleep(0.1)
+                    continue
+                    
                 if sensor_type == "imu":
                     # IMU interaction
                     accel = interaction.update_acceleration()
@@ -125,6 +167,16 @@ def main():
                     lcd.update_display(content)
                     ui.render(content)
                     logger.debug(f"Display: accel=({accel[0]:.2f}, {accel[1]:.2f}, {accel[2]:.2f})")
+                elif sensor_type == "mic":
+                    # Microphone interaction (not yet implemented)
+                    logger.debug("Microphone test mode - not yet implemented")
+                    time.sleep(0.1)
+                    continue
+                elif sensor_type == "button":
+                    # Button interaction (not yet implemented)
+                    logger.debug("Button test mode - not yet implemented")
+                    time.sleep(0.1)
+                    continue
                 else:
                     # Photoresistor interaction
                     state = interaction.update_light_state()
