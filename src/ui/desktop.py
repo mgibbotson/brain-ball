@@ -72,7 +72,15 @@ class UIDesktop(UIInterface):
                              self.CIRCLE_RADIUS)
             
             # Render content to circular surface
-            if content.mode == "imu" and content.text:
+            # Check for image data using getattr for backward compatibility
+            image_data = getattr(content, 'image_data', None)
+            image_width = getattr(content, 'image_width', None)
+            image_height = getattr(content, 'image_height', None)
+            
+            if image_data and image_width and image_height:
+                # Render pixel art image
+                self._render_pixel_art(content, surface=self._circle_surface)
+            elif content.mode == "imu" and content.text:
                 self._render_arrow(content, surface=self._circle_surface)
             elif content.text:
                 # Render text if provided
@@ -178,6 +186,39 @@ class UIDesktop(UIInterface):
             (arrowhead_point2_x, arrowhead_point2_y)
         ]
         pygame.draw.polygon(surface, arrow_color, arrowhead_points)
+    
+    def _render_pixel_art(self, content: DisplayContent, surface=None) -> None:
+        """Render pixel art image on the surface."""
+        if surface is None:
+            surface = self._screen
+        
+        if not content.image_data or not content.image_width or not content.image_height:
+            return
+        
+        try:
+            # Scale factor for pixel art (make it bigger for visibility)
+            scale = 8  # 16x16 becomes 128x128
+            
+            # Calculate position to center the scaled image
+            scaled_width = content.image_width * scale
+            scaled_height = content.image_height * scale
+            start_x = self.CIRCLE_CENTER_X - scaled_width // 2
+            start_y = self.CIRCLE_CENTER_Y - scaled_height // 2
+            
+            # Draw each pixel scaled up
+            for y, row in enumerate(content.image_data):
+                for x, pixel in enumerate(row):
+                    # Draw a scaled rectangle for each pixel
+                    rect_x = start_x + (x * scale)
+                    rect_y = start_y + (y * scale)
+                    pygame.draw.rect(
+                        surface,
+                        pixel,
+                        (rect_x, rect_y, scale, scale)
+                    )
+        except Exception as e:
+            # If rendering fails, just log and continue
+            pass
     
     def update(self) -> None:
         """Update Pygame display and handle events."""

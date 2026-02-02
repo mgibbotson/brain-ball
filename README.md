@@ -2,18 +2,29 @@
 
 An interactive embedded device application where children interact with sensors and receive visual/audio feedback.
 
-## Crawl Phase (MVP)
+## Features
 
-The current implementation focuses on the **crawl phase** - the absolute minimum viable feature:
+### Current Implementation
+
+**Crawl Phase (MVP)**:
 - Single sensor: Photoresistor (light sensor)
 - Single output: LCD display
 - Simple interaction: Child covers/exposes photoresistor, device responds with visual feedback
+
+**Voice-Activated Image Display**:
+- Microphone input with offline speech recognition (Vosk)
+- Voice-to-image matching using semantic vector embeddings
+- Stardew Valley-style 16x16 pixel art sprites
+- Two test modes:
+  - `--test mic`: Speech-to-text only (for testing recognition)
+  - `--test farm`: Full pipeline (speech-to-text → image display)
 
 ## Hardware
 
 - Raspberry Pi Zero W
 - Photoresistor (with 10kΩ resistor for voltage divider circuit)
 - Adafruit 2.8" TFT LCD Display (Product 6178 - ILI9341)
+- Microphone (USB microphone for desktop, I2S microphone for device)
 
 ### Hardware Connections
 
@@ -43,6 +54,12 @@ The current implementation focuses on the **crawl phase** - the absolute minimum
 - **Python 3.11 or higher** (required)
 - Hardware components connected (see hardware connections above)
 - SPI interface enabled (`sudo raspi-config` → Interface Options → SPI → Enable)
+
+**For macOS users (voice features)**:
+- PortAudio library (required for `pyaudio`):
+  ```bash
+  brew install portaudio
+  ```
 
 ### Installation
 
@@ -76,7 +93,24 @@ The current implementation focuses on the **crawl phase** - the absolute minimum
    pip install -e .
    ```
    
+   **Note for macOS users**: If `pyaudio` installation fails, ensure PortAudio is installed first (see Prerequisites above).
+   
    The `-e` flag installs the package in "editable" mode, allowing Python to find the `src` module.
+
+4. **Download Vosk speech recognition model** (required for voice features):
+   
+   **Using the download script** (recommended):
+   ```bash
+   # Bash script (Linux/macOS)
+   ./scripts/download_vosk_model.sh
+   
+   # Python script (cross-platform)
+   python scripts/download_vosk_model.py
+   ```
+   
+   This downloads the lightweight `vosk-model-small-en-us-0.15` model (suitable for Raspberry Pi Zero W) to the `vosk-model/` directory.
+   
+   **Alternative**: If the scripts don't work, manually download from [Vosk Models](https://alphacephei.com/vosk/models) and extract to `vosk-model/` directory.
 
 ### Running the Application
 
@@ -90,6 +124,15 @@ python -m src.app.main --backend device
 ```bash
 python -m src.app.main --backend desktop
 # Or: brain-ball --backend desktop
+```
+
+**Voice Features** (requires Vosk model):
+```bash
+# Speech-to-text only mode (test recognition)
+python -m src.app.main --backend desktop --test mic
+
+# Full pipeline: speech-to-text → image display
+python -m src.app.main --backend desktop --test farm
 ```
 
 **Note**: Use `python -m src.app.main` instead of `python src/app/main.py` to ensure Python can find the `src` module. Alternatively, use the `brain-ball` command after installing with `pip install -e .`.
@@ -113,7 +156,25 @@ tests/
 
 See `specs/001-interactive-kids-device/quickstart.md` for detailed setup instructions.
 
+## Voice Features
+
+The voice-activated image display feature uses:
+- **Vosk**: Offline speech recognition (no internet required)
+- **Sentence Transformers**: Semantic word-to-image matching using vector embeddings
+- **Pixel Art**: Stardew Valley-style 16x16 sprites for farm animals
+
+### Supported Animals
+
+The system recognizes words and sounds for:
+- Cow (words: "cow", "cattle", "bovine", "moo", "mooing")
+- Pig (words: "pig", "swine", "hog", "oink", "oinking", "snort")
+- Chicken (words: "chicken", "hen", "rooster", "cluck", "clucking", "bawk")
+- Sheep (words: "sheep", "lamb", "ewe", "ram", "baa", "baaing", "bleat")
+- Horse (words: "horse", "pony", "mare", "stallion", "neigh", "whinny")
+
+The system uses semantic matching, so saying "moo" will display a cow, "oink" will display a pig, etc.
+
 ## Future Phases
 
 - **Walk Phase**: Add audio feedback (speaker)
-- **Run Phase**: Add additional sensors (microphone, IMU) and complex interactions
+- **Run Phase**: Additional sensors and complex interactions

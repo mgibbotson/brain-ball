@@ -9,10 +9,13 @@ from src.lib.photoresistor.mock import PhotoresistorMock
 from src.lib.imu.mock import IMUMock
 from src.lib.lcd.hardware import LCDHardware
 from src.lib.lcd.mock import LCDMock
+from src.lib.microphone.hardware import MicrophoneHardware
 from src.ui.desktop import UIDesktop
 from src.ui.device import UIDevice
 from src.app.light_interaction import LightInteraction
 from src.app.imu_interaction import IMUInteraction
+from src.app.voice_interaction import VoiceInteraction
+from src.app.image_embeddings import create_farm_animal_embeddings
 from src.lib import HardwareError
 from src.ui import UIError
 
@@ -73,9 +76,9 @@ def main():
     )
     parser.add_argument(
         "--test",
-        choices=["imu", "mic", "button"],
+        choices=["imu", "mic", "farm", "button"],
         default="imu",
-        help="Test mode: select component to test (IMU, mic, or button)"
+        help="Test mode: select component to test (IMU, mic for speech-to-text, farm for full pipeline, or button)"
     )
     args = parser.parse_args()
     
@@ -100,11 +103,16 @@ def main():
                 # For device backend, would use real IMU hardware (not implemented yet)
                 logger.warning("Real IMU hardware not implemented, using mock")
                 sensor = IMUMock()
-        elif test_mode == "mic":
-            sensor_type = "mic"
-            logger.info("Microphone test mode - not yet implemented")
-            # TODO: Create microphone mock/hardware
-            sensor = None
+        elif test_mode == "mic" or test_mode == "farm":
+            sensor_type = test_mode
+            logger.info(f"Microphone test mode: {test_mode}")
+            # Use real microphone hardware (desktop uses computer mic, device uses I2S)
+            try:
+                sensor = MicrophoneHardware()
+                sensor.initialize()
+            except Exception as e:
+                logger.error(f"Failed to initialize microphone: {e}")
+                sensor = None
         elif test_mode == "button":
             sensor_type = "button"
             logger.info("Button test mode - not yet implemented")
@@ -125,14 +133,63 @@ def main():
         logger.warning(f"LCD initialization failed: {e}")
         # Continue without LCD if it fails
     
+    # Show initial loading screen
+    if args.backend == "desktop":
+        from src.app.display_content import DisplayContent
+        loading_content = DisplayContent(
+            mode="voice",
+            color=(255, 255, 255),
+            background_color=(32, 32, 32),
+            text="Loading..."
+        )
+        ui.render(loading_content)
+        ui.update()  # Process events to show the screen
+    
+    # Initialize microphone if in mic/farm mode
+    if sensor_type == "mic" or sensor_type == "farm":
+        if sensor is not None:
+            try:
+                sensor.initialize()
+            except HardwareError as e:
+                logger.warning(f"Microphone initialization failed: {e}")
+                # Continue without microphone if it fails
+    
     # Create interaction logic based on sensor type
     interaction = None
     try:
         if sensor_type == "imu":
             interaction = IMUInteraction(imu=sensor)
-        elif sensor_type == "mic":
-            logger.warning("Microphone interaction not yet implemented")
-            # TODO: Create microphone interaction
+        elif sensor_type == "mic" or sensor_type == "farm":
+            # Show loading screen for farm mode (embedding model takes time to load)
+            if sensor_type == "farm" and args.backend == "desktop":
+                loading_content = DisplayContent(
+                    mode="voice",
+                    color=(255, 255, 0),  # Yellow text
+                    background_color=(32, 32, 32),
+                    text="Loading AI model..."
+                )
+                ui.render(loading_content)
+                ui.update()
+                logger.info("Loading embedding model (this may take a moment)...")
+            
+            # Create image embeddings for farm mode
+            image_embeddings = None
+            if sensor_type == "farm":
+                try:
+                    image_embeddings = create_farm_animal_embeddings()
+                    logger.info("Embedding model loaded successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to create image embeddings: {e}")
+                    logger.info("Continuing with text-only mode")
+            
+            # Create voice interaction
+            enable_images = (sensor_type == "farm")
+            interaction = VoiceInteraction(
+                microphone=sensor,
+                lcd=lcd,
+                image_embeddings=image_embeddings,
+                enable_images=enable_images
+            )
         elif sensor_type == "button":
             logger.warning("Button interaction not yet implemented")
             # TODO: Create button interaction
@@ -167,11 +224,30 @@ def main():
                     lcd.update_display(content)
                     ui.render(content)
                     logger.debug(f"Display: accel=({accel[0]:.2f}, {accel[1]:.2f}, {accel[2]:.2f})")
-                elif sensor_type == "mic":
-                    # Microphone interaction (not yet implemented)
-                    logger.debug("Microphone test mode - not yet implemented")
-                    time.sleep(0.1)
-                    continue
+                elif sensor_type == "mic" or sensor_type == "farm":
+                    # Voice interaction
+                    word = interaction.recognize_word()
+                    if word:
+                        content = interaction.generate_display_content(word)
+                        lcd.update_display(content)
+                        if args.backend == "desktop":
+                            ui.render(content)
+                        logger.debug(f"Display: word={word}, mode={content.mode}")
+                    else:
+                        # No word recognized, show listening state
+                        # Only update display occasionally to avoid flicker
+                        # (update every 5th iteration = every 2.5 seconds)
+                        if not hasattr(interaction, '_listening_counter'):
+                            interaction._listening_counter = 0
+                        interaction._listening_counter += 1
+                        if interaction._listening_counter % 5 == 0:
+                            content = interaction.generate_display_content()
+                            lcd.update_display(content)
+                            if args.backend == "desktop":
+                                ui.render(content)
+                            logger.debug("Listening for speech...")
+                    # Longer delay for voice recognition (2 second chunks)
+                    time.sleep(0.1)  # Small delay, audio recording already takes 2 seconds
                 elif sensor_type == "button":
                     # Button interaction (not yet implemented)
                     logger.debug("Button test mode - not yet implemented")

@@ -4,7 +4,7 @@
 class DisplayContent:
     """Represents the visual feedback shown on the LCD screen."""
     
-    VALID_MODES = {"dark", "light", "transitioning", "imu"}
+    VALID_MODES = {"dark", "light", "transitioning", "imu", "voice"}
     
     def __init__(
         self,
@@ -12,17 +12,23 @@ class DisplayContent:
         color: tuple,
         background_color: tuple,
         text: str = None,
-        update_required: bool = True
+        update_required: bool = True,
+        image_data: list = None,
+        image_width: int = None,
+        image_height: int = None
     ):
         """
         Initialize DisplayContent.
         
         Parameters:
-            mode: Display mode - "dark", "light", or "transitioning"
+            mode: Display mode - "dark", "light", "transitioning", "imu", or "voice"
             color: RGB color tuple (r, g, b) where each value is 0-255
             background_color: RGB background color tuple (r, g, b)
             text: Optional text to display
             update_required: True if display needs to be refreshed
+            image_data: Optional 2D array of RGB tuples [[(r, g, b), ...], ...] for pixel art
+            image_width: Optional width of image in pixels
+            image_height: Optional height of image in pixels
             
         Raises:
             ValueError: If validation fails
@@ -41,8 +47,28 @@ class DisplayContent:
         if not all(0 <= c <= 255 for c in background_color):
             raise ValueError("background_color values must be between 0 and 255")
         
+        # Validate image data if provided
+        if image_data is not None:
+            if not isinstance(image_data, list):
+                raise ValueError("image_data must be a list (2D array)")
+            if image_width is None or image_height is None:
+                raise ValueError("image_width and image_height must be provided when image_data is set")
+            if len(image_data) != image_height:
+                raise ValueError(f"image_data height ({len(image_data)}) doesn't match image_height ({image_height})")
+            for row in image_data:
+                if not isinstance(row, list) or len(row) != image_width:
+                    raise ValueError(f"image_data row width doesn't match image_width ({image_width})")
+                for pixel in row:
+                    if not isinstance(pixel, tuple) or len(pixel) != 3:
+                        raise ValueError("image_data pixels must be RGB tuples (r, g, b)")
+                    if not all(0 <= c <= 255 for c in pixel):
+                        raise ValueError("image_data pixel values must be between 0 and 255")
+        
         self.mode = mode
         self.color = color
         self.background_color = background_color
         self.text = text
         self.update_required = update_required
+        self.image_data = image_data
+        self.image_width = image_width
+        self.image_height = image_height

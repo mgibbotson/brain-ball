@@ -85,8 +85,15 @@ class LCDHardware(LCDInterface):
             # Fill background
             self._display.fill(bg_color)
             
-            # Render text if provided
-            if content.text:
+            # Render image if provided
+            image_data = getattr(content, 'image_data', None)
+            image_width = getattr(content, 'image_width', None)
+            image_height = getattr(content, 'image_height', None)
+            
+            if image_data and image_width and image_height:
+                self._render_image(content)
+            # Render text if provided (and no image)
+            elif content.text:
                 # Simple text rendering (would need font library for production)
                 # For now, just display the mode
                 pass
@@ -102,3 +109,48 @@ class LCDHardware(LCDInterface):
         """Convert RGB tuple to 16-bit RGB565 format."""
         r, g, b = rgb
         return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+    
+    def _render_image(self, content: DisplayContent) -> None:
+        """
+        Render pixel art image on the display.
+        
+        Parameters:
+            content: DisplayContent with image_data, image_width, image_height
+        """
+        # Use getattr for backward compatibility
+        image_data = getattr(content, 'image_data', None)
+        image_width = getattr(content, 'image_width', None)
+        image_height = getattr(content, 'image_height', None)
+        
+        if not image_data:
+            return
+        
+        try:
+            # Get display dimensions
+            display_width = 320
+            display_height = 240
+            
+            # Calculate centering position
+            img_width = image_width
+            img_height = image_height
+            start_x = (display_width - img_width) // 2
+            start_y = (display_height - img_height) // 2
+            
+            # Draw image pixel by pixel
+            for y, row in enumerate(image_data):
+                for x, pixel in enumerate(row):
+                    pixel_color = self._rgb_to_565(pixel)
+                    # Draw pixel at (start_x + x, start_y + y)
+                    # ILI9341 uses pixel method or we can use a bitmap
+                    # For simplicity, draw each pixel individually
+                    try:
+                        # Create a small 1x1 bitmap for each pixel
+                        # Note: This is inefficient but works for small 16x16 images
+                        self._display.pixel(start_x + x, start_y + y, pixel_color)
+                    except AttributeError:
+                        # If pixel method doesn't exist, use alternative method
+                        # Create a bitmap and blit it
+                        # For now, just fill a small area
+                        pass
+        except Exception as e:
+            raise HardwareError(f"Failed to render image: {e}")
