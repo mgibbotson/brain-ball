@@ -290,22 +290,40 @@ class UIDesktop(UIInterface):
             indicator_x = self.CIRCLE_CENTER_X
             
             if status == "listening":
-                # Draw a microphone icon (simple representation, larger for visibility)
-                color = (128, 128, 128)
-                # Microphone body (vertical rectangle)
-                mic_width = 10
-                mic_height = 16
-                pygame.draw.rect(surface, color, 
-                               (indicator_x - mic_width // 2, indicator_y - mic_height, mic_width, mic_height))
-                # Microphone stand (horizontal line at top)
-                pygame.draw.line(surface, color, 
-                               (indicator_x - 8, indicator_y - mic_height), 
-                               (indicator_x + 8, indicator_y - mic_height), 3)
-                # Sound waves (small arcs on sides)
-                for offset in [-12, 12]:
-                    pygame.draw.arc(surface, color, 
-                                  (indicator_x + offset - 5, indicator_y - mic_height - 3, 10, 10),
-                                  0, 3.14, 2)
+                # Draw a microphone icon: dark cone with grey ball at the end, tilted Northeast
+                # Make it 50% bigger
+                scale = 1.5
+                ball_radius = int(4 * scale)
+                ball_color = (148, 148, 148)  # Grey
+                cone_color = (64, 64, 64)  # Dark grey
+                cone_height = int(10 * scale)
+                cone_top_width = int(2 * scale)
+                cone_bottom_width = int(ball_radius * 2)
+                
+                # Tilt 45 degrees Northeast: ball at top-right, cone pointing down-left
+                # Calculate tilt offset (45 degrees = equal x and y offsets)
+                tilt_offset = int(cone_height * 0.7)  # Distance for Northeast tilt
+                
+                # Ball position (Northeast of center)
+                ball_x = indicator_x + tilt_offset
+                ball_y = indicator_y - tilt_offset
+                pygame.draw.circle(surface, ball_color, (ball_x, ball_y), ball_radius)
+                
+                # Cone pointing from ball toward Southwest (down-left)
+                # Calculate cone points relative to ball position
+                cone_start_x = ball_x - cone_bottom_width // 2
+                cone_start_y = ball_y + ball_radius
+                cone_end_x = ball_x - cone_top_width // 2 - tilt_offset
+                cone_end_y = ball_y + ball_radius + cone_height
+                
+                # Draw cone as a triangle
+                cone_points = [
+                    (cone_end_x, cone_end_y),  # Bottom-left (cone tip)
+                    (cone_end_x + cone_top_width, cone_end_y),  # Bottom-right
+                    (cone_start_x + cone_bottom_width, cone_start_y),  # Top-right (at ball)
+                    (cone_start_x, cone_start_y),  # Top-left (at ball)
+                ]
+                pygame.draw.polygon(surface, cone_color, cone_points)
             elif status == "thinking":
                 # Orange/yellow thinking icon (spinning dots or loading indicator)
                 color = (255, 200, 0)

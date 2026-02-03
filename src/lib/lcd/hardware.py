@@ -220,20 +220,47 @@ class LCDHardware(LCDInterface):
             indicator_x = image_start_x + image_width // 2
             
             if status == "listening":
-                # Draw a microphone icon (simple pixel representation)
-                color = self._rgb_to_565((128, 128, 128))
-                # Microphone body (vertical line)
-                for y in range(3):
-                    if 0 <= indicator_y + y < display_height:
-                        self._display.pixel(indicator_x, indicator_y + y, color)
-                # Microphone stand (horizontal line at top)
-                for x in range(-2, 3):
-                    if 0 <= indicator_x + x < display_width:
-                        self._display.pixel(indicator_x + x, indicator_y, color)
-                # Sound waves (small dots on sides)
-                for offset in [-4, 4]:
-                    if 0 <= indicator_x + offset < display_width and 0 <= indicator_y + 1 < display_height:
-                        self._display.pixel(indicator_x + offset, indicator_y + 1, color)
+                # Draw a microphone icon: dark cone with grey ball at the end, tilted Northeast
+                # Make it 50% bigger
+                scale = 1.5
+                ball_color = self._rgb_to_565((148, 148, 148))
+                cone_color = self._rgb_to_565((64, 64, 64))
+                ball_radius = int(3 * scale)
+                cone_height = int(8 * scale)
+                
+                # Tilt 45 degrees Northeast: ball at top-right, cone pointing down-left
+                tilt_offset = int(cone_height * 0.7)  # Distance for Northeast tilt
+                
+                # Ball position (Northeast of center)
+                ball_x = indicator_x + tilt_offset
+                ball_y = indicator_y - tilt_offset
+                
+                # Draw ball as a small circle (approximate with pixels)
+                for y_offset in range(-ball_radius, ball_radius + 1):
+                    for x_offset in range(-ball_radius, ball_radius + 1):
+                        if x_offset * x_offset + y_offset * y_offset <= ball_radius * ball_radius:
+                            x = ball_x + x_offset
+                            y = ball_y + y_offset
+                            if 0 <= x < display_width and 0 <= y < display_height:
+                                self._display.pixel(x, y, ball_color)
+                
+                # Dark cone pointing from ball toward Southwest (down-left)
+                # Draw cone as a triangle (pixel by pixel, rotated 45 degrees)
+                for i in range(cone_height):
+                    # Width decreases as we go down-left along the diagonal
+                    width_at_i = int((ball_radius + 1) * (1 - i / cone_height))
+                    # Position along the diagonal (down-left from ball)
+                    # For 45-degree diagonal: equal x and y movement
+                    diag_x = ball_x - int(i * 0.707)  # cos(45°) ≈ 0.707
+                    diag_y = ball_y + ball_radius + int(i * 0.707)  # sin(45°) ≈ 0.707
+                    
+                    # Draw width perpendicular to the diagonal
+                    for perp_offset in range(-width_at_i, width_at_i + 1):
+                        # Perpendicular to 45° line: swap x/y offsets
+                        x = diag_x - int(perp_offset * 0.707)
+                        y = diag_y + int(perp_offset * 0.707)
+                        if 0 <= x < display_width and 0 <= y < display_height:
+                            self._display.pixel(x, y, cone_color)
             elif status == "thinking":
                 # Orange/yellow thinking icon (three dots)
                 color = self._rgb_to_565((255, 200, 0))
