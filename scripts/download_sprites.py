@@ -11,6 +11,7 @@ import urllib.request
 import urllib.parse
 from pathlib import Path
 from typing import Dict, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SPRITES_DIR = "sprites/Animals"
 BASE_URL = "https://stardew-png.github.io"
@@ -29,7 +30,7 @@ ANIMAL_CATEGORIES = {
 }
 
 
-def download_sprite_from_url(url: str, target_path: Path, verbose: bool = False) -> bool:
+def download_sprite_from_url(url: str, target_path: Path, verbose: bool = False) -> tuple:
     """Download a single sprite from a URL.
     
     Args:
@@ -38,7 +39,7 @@ def download_sprite_from_url(url: str, target_path: Path, verbose: bool = False)
         verbose: If True, print progress
         
     Returns:
-        True if successful, False otherwise
+        Tuple of (success: bool, url: str, target_path: Path) for result tracking
     """
     try:
         urllib.request.urlretrieve(url, target_path)
@@ -47,19 +48,23 @@ def download_sprite_from_url(url: str, target_path: Path, verbose: bool = False)
             with open(target_path, 'rb') as f:
                 header = f.read(8)
                 if header[:8] == b'\x89PNG\r\n\x1a\n':
-                    return True
+                    return (True, url, target_path)
                 else:
                     target_path.unlink()
-                    return False
+                    return (False, url, target_path)
         else:
             target_path.unlink()
-            return False
+            return (False, url, target_path)
+    except urllib.error.HTTPError as e:
+        if target_path.exists():
+            target_path.unlink()
+        return (False, url, target_path)
     except Exception as e:
         if verbose:
             print(f"  Error downloading {url}: {e}")
         if target_path.exists():
             target_path.unlink()
-        return False
+        return (False, url, target_path)
 
 
 def download_sprites(project_root: Path = None, verbose: bool = False, progress_callback=None) -> bool:
@@ -131,10 +136,9 @@ def download_sprites(project_root: Path = None, verbose: bool = False, progress_
             print(f"\nDownloading {animal_type} sprites...")
         
         for animal_name in variations:
-            frames_downloaded = 0
-            consecutive_404s = 0
-            max_consecutive_404s = 5  # Stop if we get 5 consecutive 404s
-            
+            frames_downloaded = 0  # Initialize for this animal variation
+            # Collect all URLs to download for this animal variation
+            download_tasks = []
             for frame_num in range(max_frames + 1):
                 url = f"{base_url_pattern}/{animal_name}/{frame_num}.png"
                 filename = f"{animal_name}_{frame_num:02d}.png"
@@ -142,62 +146,63 @@ def download_sprites(project_root: Path = None, verbose: bool = False, progress_
                 
                 if target_path.exists():
                     frames_downloaded += 1
-                    consecutive_404s = 0  # Reset counter if file exists
                     continue  # Skip if already exists
                 
-                try:
-                    # Try to download
-                    if verbose:
-                        print(f"  Downloading {animal_type}/{filename}...", end=" ", flush=True)
-                    if progress_callback:
-                        progress_callback(animal_type, filename, "downloading")
-                    urllib.request.urlretrieve(url, target_path)
-                    # Verify it's a valid PNG
-                    if target_path.stat().st_size > 100:
-                        with open(target_path, 'rb') as f:
-                            header = f.read(8)
-                            if header[:8] == b'\x89PNG\r\n\x1a\n':
-                                downloaded_count += 1
-                                frames_downloaded += 1
-                                consecutive_404s = 0  # Reset counter on success
-                                if verbose:
-                                    print(f"✓")
-                                if progress_callback:
-                                    progress_callback(animal_type, filename, "success")
-                                continue
-                    
-                    # Not a valid PNG, delete it
-                    target_path.unlink()
-                    consecutive_404s += 1
-                    if verbose:
-                        print("✗ (invalid PNG)")
-                    if progress_callback:
-                        progress_callback(animal_type, filename, "failed")
-                except urllib.error.HTTPError as e:
-                    if e.code == 404:
+                download_tasks.append((url, target_path, animal_type, filename))
+            
+            if not download_tasks:
+                continue
+            
+            # Download in parallel using ThreadPoolExecutor for faster downloads
+            max_workers = min(10, len(download_tasks))  # Limit concurrent downloads (10 max)
+            if verbose:
+                print(f"  Downloading {len(download_tasks)} sprites for {animal_name} (using {max_workers} parallel workers)...")
+            
+            # Download in parallel using ThreadPoolExecutor
+            consecutive_404s = 0
+            max_consecutive_404s = 5
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all download tasks
+                future_to_task = {
+                    executor.submit(download_sprite_from_url, url, target_path, verbose=False): (url, target_path, animal_type, filename)
+                    for url, target_path, animal_type, filename in download_tasks
+                }
+                
+                # Process completed downloads
+                for future in as_completed(future_to_task):
+                    url, target_path, animal_type, filename = future_to_task[future]
+                    try:
+                        success, result_url, result_path = future.result()
+                        
+                        if success:
+                            downloaded_count += 1
+                            frames_downloaded += 1
+                            consecutive_404s = 0  # Reset counter on success
+                            if verbose:
+                                print(f"  ✓ Downloaded {animal_type}/{filename}")
+                            if progress_callback:
+                                progress_callback(animal_type, filename, "success")
+                        else:
+                            consecutive_404s += 1
+                            if verbose and consecutive_404s <= 3:  # Only print first few failures
+                                print(f"  ✗ Failed {animal_type}/{filename}")
+                            if progress_callback and consecutive_404s <= 3:
+                                progress_callback(animal_type, filename, "failed")
+                            
+                            # Stop if we get too many consecutive 404s
+                            if consecutive_404s >= max_consecutive_404s:
+                                # Cancel remaining tasks for this animal variation
+                                for remaining_future in future_to_task:
+                                    if not remaining_future.done():
+                                        remaining_future.cancel()
+                                break
+                    except Exception as e:
                         consecutive_404s += 1
                         if verbose:
-                            print("✗ (404)")
-                    else:
-                        consecutive_404s = 0  # Reset on other errors
-                        if verbose:
-                            print(f"✗ (HTTP {e.code})")
-                    if progress_callback and e.code != 404:  # Don't callback for 404s (too many)
-                        progress_callback(animal_type, filename, "failed")
-                    if target_path.exists():
-                        target_path.unlink()
-                except Exception as e:
-                    consecutive_404s += 1
-                    if verbose:
-                        print(f"✗ ({type(e).__name__})")
-                    if progress_callback:
-                        progress_callback(animal_type, filename, "failed")
-                    if target_path.exists():
-                        target_path.unlink()
-                
-                # Stop if we get too many consecutive 404s
-                if consecutive_404s >= max_consecutive_404s:
-                    break
+                            print(f"  ✗ Error downloading {animal_type}/{filename}: {e}")
+                        if progress_callback:
+                            progress_callback(animal_type, filename, "failed")
             
             if frames_downloaded > 0 and verbose:
                 print(f"  Downloaded {frames_downloaded} frames for {animal_name}")

@@ -92,7 +92,12 @@ class LCDHardware(LCDInterface):
             
             if image_data and image_width and image_height:
                 self._render_image(content)
-                # Render status indicator if present
+                
+                # Render text below image if present (recognized word or status)
+                if content.text:
+                    self._render_text_below_image(content, image_width, image_height)
+                
+                # Render status indicator below the text if present
                 status_indicator = getattr(content, 'status_indicator', None)
                 if status_indicator:
                     self._render_status_indicator(status_indicator, image_width, image_height)
@@ -159,8 +164,38 @@ class LCDHardware(LCDInterface):
         except Exception as e:
             raise HardwareError(f"Failed to render image: {e}")
     
+    def _render_text_below_image(self, content: DisplayContent, image_width: int, image_height: int) -> None:
+        """Render text below the pixel art image.
+        
+        Args:
+            content: DisplayContent with text to render
+            image_width: Width of the main image
+            image_height: Height of the main image
+        """
+        if not content.text:
+            return
+        
+        try:
+            display_width = 320
+            display_height = 240
+            
+            # Position text below the image with generous spacing
+            image_start_x = (display_width - image_width) // 2
+            image_start_y = (display_height - image_height) // 2
+            text_y = image_start_y + image_height + 20  # Increased spacing
+            text_x = image_start_x + image_width // 2
+            
+            # Simple text rendering: draw characters pixel by pixel
+            # For now, we'll use a simple approach - just indicate text is there
+            # Full text rendering would require a font library
+            # For LCD, we'll just draw a small indicator that text should be here
+            # In a full implementation, you'd use a font library to render the text
+            pass  # Text rendering on LCD would require a font library
+        except Exception as e:
+            raise HardwareError(f"Failed to render text: {e}")
+    
     def _render_status_indicator(self, status: str, image_width: int, image_height: int) -> None:
-        """Render a small status indicator icon below the main image.
+        """Render a small status indicator icon below the text.
         
         Args:
             status: Status type ("listening" or "thinking")
@@ -174,30 +209,37 @@ class LCDHardware(LCDInterface):
             display_width = 320
             display_height = 240
             
-            # Position indicator below the main image
+            # Position indicator below the text (which is below the image)
             image_start_x = (display_width - image_width) // 2
             image_start_y = (display_height - image_height) // 2
-            indicator_y = image_start_y + image_height + 5
+            text_spacing = 20  # Spacing between image and text
+            text_height = 30  # Approximate text height
+            indicator_spacing = 25  # Generous spacing between text and indicator
+            text_y = image_start_y + image_height + text_spacing
+            indicator_y = text_y + text_height + indicator_spacing  # Below text with more space
             indicator_x = image_start_x + image_width // 2
             
-            # Draw a small dot/icon based on status
             if status == "listening":
-                # Gray dot for listening
+                # Draw a microphone icon (simple pixel representation)
                 color = self._rgb_to_565((128, 128, 128))
-                # Draw a small filled circle (3x3 pixels)
-                for y in range(-1, 2):
-                    for x in range(-1, 2):
-                        if x*x + y*y <= 2:  # Circle approximation
-                            if 0 <= indicator_x + x < display_width and 0 <= indicator_y + y < display_height:
-                                self._display.pixel(indicator_x + x, indicator_y + y, color)
+                # Microphone body (vertical line)
+                for y in range(3):
+                    if 0 <= indicator_y + y < display_height:
+                        self._display.pixel(indicator_x, indicator_y + y, color)
+                # Microphone stand (horizontal line at top)
+                for x in range(-2, 3):
+                    if 0 <= indicator_x + x < display_width:
+                        self._display.pixel(indicator_x + x, indicator_y, color)
+                # Sound waves (small dots on sides)
+                for offset in [-4, 4]:
+                    if 0 <= indicator_x + offset < display_width and 0 <= indicator_y + 1 < display_height:
+                        self._display.pixel(indicator_x + offset, indicator_y + 1, color)
             elif status == "thinking":
-                # Orange/yellow dot for thinking
+                # Orange/yellow thinking icon (three dots)
                 color = self._rgb_to_565((255, 200, 0))
-                # Draw a small filled circle (3x3 pixels)
-                for y in range(-1, 2):
-                    for x in range(-1, 2):
-                        if x*x + y*y <= 2:  # Circle approximation
-                            if 0 <= indicator_x + x < display_width and 0 <= indicator_y + y < display_height:
-                                self._display.pixel(indicator_x + x, indicator_y + y, color)
+                # Draw three dots in a row
+                for offset in [-4, 0, 4]:
+                    if 0 <= indicator_x + offset < display_width and 0 <= indicator_y < display_height:
+                        self._display.pixel(indicator_x + offset, indicator_y, color)
         except Exception as e:
             raise HardwareError(f"Failed to render status indicator: {e}")

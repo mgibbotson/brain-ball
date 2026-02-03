@@ -37,6 +37,7 @@ class ImageEmbeddings:
         
         try:
             from sentence_transformers import SentenceTransformer
+            import os
         except ImportError:
             raise RuntimeError(
                 "sentence-transformers not available. Install with: pip install sentence-transformers"
@@ -44,7 +45,26 @@ class ImageEmbeddings:
         
         try:
             logger.info(f"Loading embedding model: {self.model_name}")
-            self._model = SentenceTransformer(self.model_name)
+            
+            # Optimize loading: try local-only first, then fall back to online
+            # This avoids unnecessary network requests if model is already cached
+            import time
+            start_time = time.time()
+            
+            try:
+                # Try loading from local cache only (much faster - no network requests)
+                # This will fail if model isn't cached yet
+                self._model = SentenceTransformer(self.model_name, local_files_only=True)
+                load_time = time.time() - start_time
+                logger.info(f"Loaded model from local cache in {load_time:.2f}s")
+            except (OSError, ValueError, FileNotFoundError) as e:
+                # Model not in cache, need to download (first time only)
+                logger.info("Model not in local cache, downloading from HuggingFace (first time only)...")
+                # Download and cache the model
+                self._model = SentenceTransformer(self.model_name)
+                load_time = time.time() - start_time
+                logger.info(f"Model downloaded and cached in {load_time:.2f}s (future loads will be faster)")
+            
             self._initialized = True
             logger.info("Embedding model loaded successfully")
         except Exception as e:

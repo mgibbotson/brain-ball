@@ -221,17 +221,20 @@ class VoiceInteraction:
             if self.enable_images and self.last_image_data:
                 # Determine status indicator
                 status_indicator = None
+                display_text = None
                 if hasattr(self, 'status'):
                     if self.status == "processing":
                         status_indicator = "thinking"  # Orange/yellow indicator
+                        display_text = "Thinking..."
                     else:
                         status_indicator = "listening"  # Gray indicator
+                        display_text = "Listening..."
                 
                 return DisplayContent(
                     mode="voice",
                     color=(255, 255, 255),
                     background_color=(0, 0, 0),
-                    text=None,
+                    text=display_text,  # Show status text below image
                     image_data=self.last_image_data,
                     image_width=16,
                     image_height=16,
@@ -270,11 +273,12 @@ class VoiceInteraction:
                         self.last_image_data = image_data
                         self.last_image_key = image_key
                         
+                        # Display word text below the image
                         return DisplayContent(
                             mode="voice",
                             color=(255, 255, 255),
                             background_color=(0, 0, 0),
-                            text=None,
+                            text=word.upper(),  # Show recognized word below image
                             image_data=image_data,
                             image_width=16,
                             image_height=16,

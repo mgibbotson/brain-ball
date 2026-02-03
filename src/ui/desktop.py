@@ -80,7 +80,12 @@ class UIDesktop(UIInterface):
             if image_data and image_width and image_height:
                 # Render pixel art image
                 self._render_pixel_art(content, surface=self._circle_surface)
-                # Render status indicator below the image if present
+                
+                # Render text below image if present (recognized word or status)
+                if content.text:
+                    self._render_text_below_image(content, surface=self._circle_surface)
+                
+                # Render status indicator below the text if present
                 status_indicator = getattr(content, 'status_indicator', None)
                 if status_indicator:
                     self._render_status_indicator(status_indicator, surface=self._circle_surface)
@@ -224,8 +229,44 @@ class UIDesktop(UIInterface):
             # If rendering fails, just log and continue
             pass
     
+    def _render_text_below_image(self, content: DisplayContent, surface=None) -> None:
+        """Render text below the pixel art image with 16-bit game style font.
+        
+        Args:
+            content: DisplayContent with text to render
+            surface: Pygame surface to render on (defaults to screen)
+        """
+        if surface is None:
+            surface = self._screen
+        
+        if not content.text:
+            return
+        
+        try:
+            # Position text below the image with generous spacing
+            # Image is 16x16 scaled by 8 = 128x128 pixels
+            image_bottom = self.CIRCLE_CENTER_Y + (16 * 8) // 2
+            text_y = image_bottom + 30  # Increased spacing from image
+            
+            # Use a larger font size for 16-bit game style
+            # Try to use a monospace font for retro game look, fallback to default
+            try:
+                # Try to use a monospace font (more retro game-like)
+                font = pygame.font.SysFont("courier", 42, bold=True)
+            except:
+                # Fallback to default font with larger size
+                font = pygame.font.Font(None, 42)
+            
+            text_color = content.color if content.color else (255, 255, 255)
+            # Render with antialiasing disabled for pixelated 16-bit look
+            text_surface = font.render(content.text, False, text_color)
+            text_rect = text_surface.get_rect(center=(self.CIRCLE_CENTER_X, text_y))
+            surface.blit(text_surface, text_rect)
+        except Exception as e:
+            pass  # Don't crash UI if text rendering fails
+    
     def _render_status_indicator(self, status: str, surface=None) -> None:
-        """Render a small status indicator icon below the main image.
+        """Render a small status indicator icon below the text.
         
         Args:
             status: Status type ("listening" or "thinking")
@@ -238,23 +279,41 @@ class UIDesktop(UIInterface):
             return
         
         try:
-            # Position indicator below the main image
-            # Main image is centered, so indicator goes below it
+            # Position indicator below the text (which is below the image)
             # Image is 16x16 scaled by 8 = 128x128 pixels
-            indicator_y = self.CIRCLE_CENTER_Y + (16 * 8) // 2 + 15  # Below 16x16 image scaled by 8
+            # Text is rendered below image, so indicator goes below text
+            image_bottom = self.CIRCLE_CENTER_Y + (16 * 8) // 2
+            text_height = 50  # Approximate text height (larger font)
+            text_spacing = 30  # Spacing between image and text
+            indicator_spacing = 35  # Generous spacing between text and indicator
+            indicator_y = image_bottom + text_spacing + text_height + indicator_spacing
             indicator_x = self.CIRCLE_CENTER_X
             
-            # Draw a small dot/icon based on status
             if status == "listening":
-                # Gray dot for listening
+                # Draw a microphone icon (simple representation, larger for visibility)
                 color = (128, 128, 128)
-                # Draw a small circle
-                pygame.draw.circle(surface, color, (indicator_x, indicator_y), 5)
+                # Microphone body (vertical rectangle)
+                mic_width = 10
+                mic_height = 16
+                pygame.draw.rect(surface, color, 
+                               (indicator_x - mic_width // 2, indicator_y - mic_height, mic_width, mic_height))
+                # Microphone stand (horizontal line at top)
+                pygame.draw.line(surface, color, 
+                               (indicator_x - 8, indicator_y - mic_height), 
+                               (indicator_x + 8, indicator_y - mic_height), 3)
+                # Sound waves (small arcs on sides)
+                for offset in [-12, 12]:
+                    pygame.draw.arc(surface, color, 
+                                  (indicator_x + offset - 5, indicator_y - mic_height - 3, 10, 10),
+                                  0, 3.14, 2)
             elif status == "thinking":
-                # Orange/yellow dot for thinking
+                # Orange/yellow thinking icon (spinning dots or loading indicator)
                 color = (255, 200, 0)
-                # Draw a small circle
-                pygame.draw.circle(surface, color, (indicator_x, indicator_y), 5)
+                # Draw three dots in a row (loading indicator, slightly larger)
+                for i, offset in enumerate([-8, 0, 8]):
+                    dot_size = 4
+                    pygame.draw.circle(surface, color, 
+                                     (indicator_x + offset, indicator_y), dot_size)
         except Exception as e:
             pass  # Don't crash UI if indicator rendering fails
     
