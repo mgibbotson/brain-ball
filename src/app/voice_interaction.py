@@ -18,6 +18,8 @@ DEFAULT_VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "v
 
 class VoiceInteraction:
     """Manages voice recognition and image display based on speech input."""
+
+    IMAGE_UPDATE_PERIOD = 1.0 # seconds
     
     def __init__(
         self,
@@ -42,6 +44,7 @@ class VoiceInteraction:
         self.image_embeddings = image_embeddings
         self.enable_images = enable_images
         self.vosk_model_path = vosk_model_path or DEFAULT_VOSK_MODEL_PATH
+        self.last_image_update_time = None
         
         # Initialize Vosk recognizer
         self._recognizer = None
@@ -193,16 +196,6 @@ class VoiceInteraction:
             self.current_word = word
             logger.info(f"✓ Recognized word: {word}")
             
-            # Update image if enabled
-            if self.enable_images:
-                image_key = self.find_closest_image(word)
-                if image_key:
-                    try:
-                        from src.app.pixel_art import get_pixel_art_image
-                        self.last_image_data = get_pixel_art_image(image_key)
-                        self.last_image_key = image_key
-                    except Exception as e:
-                        logger.warning(f"Failed to load image for {image_key}: {e}")
     
     def recognize_word(self) -> Optional[str]:
         """
@@ -285,7 +278,18 @@ class VoiceInteraction:
                 # Get image data from pixel_art module
                 try:
                     from src.app.pixel_art import get_pixel_art_image
-                    image_data = get_pixel_art_image(image_key)
+
+                    time_delta = time.time() - self.last_image_update_time if self.last_image_update_time is not None else 0
+
+                    if (self.last_image_key is None
+                    or self.last_image_key != image_key 
+                    or time_delta >= self.IMAGE_UPDATE_PERIOD):
+                        image_data = get_pixel_art_image(image_key)
+                        self.last_image_update_time = time.time()
+                    else:
+                        image_data = self.last_image_data
+
+
                     if image_data:
                         # Store for later display
                         self.last_image_data = image_data
