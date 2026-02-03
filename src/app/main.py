@@ -410,6 +410,14 @@ def main():
                 image_embeddings=image_embeddings,
                 enable_images=enable_images
             )
+            
+            # Start continuous recognition in background thread
+            try:
+                interaction.start_continuous_recognition()
+                logger.info("Continuous voice recognition started")
+            except Exception as e:
+                logger.error(f"Failed to start continuous recognition: {e}")
+                logger.info("Falling back to per-call recognition")
         elif sensor_type == "button":
             logger.warning("Button interaction not yet implemented")
             # TODO: Create button interaction
@@ -445,31 +453,22 @@ def main():
                     ui.render(content)
                     logger.debug(f"Display: accel=({accel[0]:.2f}, {accel[1]:.2f}, {accel[2]:.2f})")
                 elif sensor_type == "mic" or sensor_type == "farm":
-                    # Voice interaction
-                    # Show current status (listening) before processing
-                    content = interaction.generate_display_content()
-                    lcd.update_display(content)
-                    if args.backend == "desktop":
-                        ui.render(content)
-                    
-                    # Recognize word (this will update status to "processing" then "recognized" or back to "listening")
+                    # Voice interaction - background thread continuously updates word/image
+                    # Just get the current recognized word (thread-safe)
                     word = interaction.recognize_word()
                     
-                    # Show updated status/content
+                    # Generate display content (always shows listening, with current word/image)
+                    content = interaction.generate_display_content(word)
                     if word:
-                        content = interaction.generate_display_content(word)
-                        logger.info(f"Display: word={word}, mode={content.mode}")
-                    else:
-                        content = interaction.generate_display_content()
-                        status = interaction.status if hasattr(interaction, 'status') else 'unknown'
-                        logger.debug(f"Status: {status}")
+                        logger.debug(f"Display: word={word}, mode={content.mode}")
                     
                     lcd.update_display(content)
                     if args.backend == "desktop":
                         ui.render(content)
+                        ui.update()  # Update immediately
                     
-                    # Longer delay for voice recognition (2 second chunks)
-                    time.sleep(0.1)  # Small delay, audio recording already takes 2 seconds
+                    # Small delay - recognition happens in background thread
+                    time.sleep(0.05)
                 elif sensor_type == "button":
                     # Button interaction (not yet implemented)
                     logger.debug("Button test mode - not yet implemented")
@@ -499,6 +498,13 @@ def main():
     finally:
         # Cleanup
         logger.info("Cleaning up...")
+        try:
+            # Stop continuous recognition if running
+            if interaction and hasattr(interaction, 'stop_continuous_recognition'):
+                interaction.stop_continuous_recognition()
+        except Exception as e:
+            logger.error(f"Error stopping recognition: {e}")
+        
         try:
             ui.cleanup()
         except Exception as e:

@@ -3,6 +3,8 @@
 import logging
 import json
 import os
+import threading
+import time
 from typing import Optional
 from src.lib.microphone.interface import MicrophoneInterface
 from src.lib.lcd.interface import LCDInterface
@@ -46,15 +48,18 @@ class VoiceInteraction:
         self._rec = None
         self._initialized = False
         
-        # Current recognized word
+        # Thread-safe access to recognized word and image
+        self._lock = threading.Lock()
         self.current_word = None
         
         # Last recognized image (to keep displaying)
         self.last_image_key = None
         self.last_image_data = None
         
-        # Status tracking
-        self.status = "listening"  # "listening", "processing", "recognized"
+        # Background thread for continuous recognition
+        self._recognition_thread = None
+        self._stop_recognition = threading.Event()
+        self._recognition_running = False
     
     def _initialize_vosk(self):
         """Initialize Vosk speech recognition."""
@@ -83,97 +88,131 @@ class VoiceInteraction:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Vosk: {e}")
     
-    def recognize_word(self) -> Optional[str]:
+    def start_continuous_recognition(self) -> None:
         """
-        Recognize a word from microphone input.
+        Start continuous recognition in a background thread.
+        This will continuously record and process audio, updating current_word in real-time.
+        """
+        if self._recognition_running:
+            logger.warning("Recognition thread already running")
+            return
         
-        Returns:
-            str: Recognized word, or None if no speech detected
-            
-        Raises:
-            RuntimeError: If Vosk is not initialized
-            HardwareError: If microphone fails
-        """
         if not self._initialized:
             self._initialize_vosk()
         
+        if not self.microphone.is_available():
+            raise RuntimeError("Microphone not available")
+        
+        self._stop_recognition.clear()
+        self._recognition_running = True
+        self._recognition_thread = threading.Thread(
+            target=self._recognition_loop,
+            daemon=True,
+            name="VoiceRecognition"
+        )
+        self._recognition_thread.start()
+        logger.info("Started continuous voice recognition thread")
+    
+    def stop_continuous_recognition(self) -> None:
+        """Stop the continuous recognition thread."""
+        if not self._recognition_running:
+            return
+        
+        self._stop_recognition.set()
+        if self._recognition_thread:
+            self._recognition_thread.join(timeout=2.0)
+        self._recognition_running = False
+        logger.info("Stopped continuous voice recognition thread")
+    
+    def _recognition_loop(self) -> None:
+        """Background thread loop that continuously records and processes audio."""
         try:
-            # Set status to listening
-            self.status = "listening"
+            import pyaudio
             
-            # Record audio (2 second chunks for better recognition)
-            audio_data = self.microphone.record_audio(2.0)
-            expected_size = 16000 * 2 * 2  # 16kHz * 2 seconds * 2 bytes per sample
-            logger.debug(f"Recorded {len(audio_data)} bytes of audio (expected ~{expected_size})")
+            # Open a continuous audio stream
+            audio = pyaudio.PyAudio()
+            stream = audio.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=16000,  # 16kHz for Vosk
+                input=True,
+                frames_per_buffer=4000  # 0.25 seconds at 16kHz
+            )
             
-            if len(audio_data) < expected_size * 0.5:
-                logger.warning(f"Audio data seems too short: {len(audio_data)} bytes")
-                self.status = "listening"
-                return None
+            logger.debug("Audio stream opened for continuous recognition")
             
-            # Set status to processing
-            self.status = "processing"
-            logger.debug("Processing audio with Vosk...")
+            while not self._stop_recognition.is_set():
+                try:
+                    # Read a small chunk of audio (0.25 seconds)
+                    audio_data = stream.read(4000, exception_on_overflow=False)
+                    
+                    # Process with Vosk
+                    if self._rec.AcceptWaveform(audio_data):
+                        # Final result
+                        result = json.loads(self._rec.Result())
+                        text = result.get("text", "").strip()
+                        if text:
+                            words = text.split()
+                            if words:
+                                word = words[0].lower()
+                                self._update_recognized_word(word)
+                    else:
+                        # Check for partial result
+                        partial_result = json.loads(self._rec.PartialResult())
+                        partial_text = partial_result.get("partial", "").strip()
+                        if partial_text:
+                            words = partial_text.split()
+                            if words:
+                                word = words[0].lower()
+                                # Only update on partial if it's different and seems stable
+                                with self._lock:
+                                    if word != self.current_word and len(word) >= 2:
+                                        self._update_recognized_word(word)
+                
+                except Exception as e:
+                    logger.error(f"Error in recognition loop: {e}", exc_info=True)
+                    time.sleep(0.1)  # Brief pause on error
             
-            # Process with Vosk
-            if self._rec.AcceptWaveform(audio_data):
-                # Final result
-                result = json.loads(self._rec.Result())
-                text = result.get("text", "").strip()
-                logger.info(f"Vosk final result: '{text}'")
-                if text:
-                    # Extract first word
-                    words = text.split()
-                    if words:
-                        word = words[0].lower()
-                        self.current_word = word
-                        self.status = "recognized"
-                        logger.info(f"✓ Recognized word: {word}")
-                        # Update last image when we recognize a new word
-                        if self.enable_images:
-                            image_key = self.find_closest_image(word)
-                            if image_key:
-                                try:
-                                    from src.app.pixel_art import get_pixel_art_image
-                                    self.last_image_data = get_pixel_art_image(image_key)
-                                    self.last_image_key = image_key
-                                except Exception as e:
-                                    logger.warning(f"Failed to load image for {image_key}: {e}")
-                        return word
-            else:
-                # Partial result
-                result = json.loads(self._rec.PartialResult())
-                text = result.get("partial", "").strip()
-                if text:
-                    logger.info(f"Vosk partial result: '{text}'")
-                    words = text.split()
-                    if words:
-                        word = words[0].lower()
-                        self.current_word = word
-                        self.status = "recognized"
-                        logger.info(f"Partial recognition: {word}")
-                        # Update last image when we recognize a new word
-                        if self.enable_images:
-                            image_key = self.find_closest_image(word)
-                            if image_key:
-                                try:
-                                    from src.app.pixel_art import get_pixel_art_image
-                                    self.last_image_data = get_pixel_art_image(image_key)
-                                    self.last_image_key = image_key
-                                except Exception as e:
-                                    logger.warning(f"Failed to load image for {image_key}: {e}")
-                        return word
-            
-            # No words recognized
-            self.current_word = None
-            self.status = "listening"
-            logger.debug("No speech detected in audio chunk")
-            return None
+            # Cleanup
+            stream.stop_stream()
+            stream.close()
+            audio.terminate()
+            logger.debug("Audio stream closed")
             
         except Exception as e:
-            logger.error(f"Failed to recognize word: {e}", exc_info=True)
-            self.status = "listening"
-            return None
+            logger.error(f"Failed to start recognition loop: {e}", exc_info=True)
+            self._recognition_running = False
+    
+    def _update_recognized_word(self, word: str) -> None:
+        """Thread-safe update of recognized word and image."""
+        with self._lock:
+            # Only update if it's a different word
+            if word == self.current_word:
+                return
+            
+            self.current_word = word
+            logger.info(f"✓ Recognized word: {word}")
+            
+            # Update image if enabled
+            if self.enable_images:
+                image_key = self.find_closest_image(word)
+                if image_key:
+                    try:
+                        from src.app.pixel_art import get_pixel_art_image
+                        self.last_image_data = get_pixel_art_image(image_key)
+                        self.last_image_key = image_key
+                    except Exception as e:
+                        logger.warning(f"Failed to load image for {image_key}: {e}")
+    
+    def recognize_word(self) -> Optional[str]:
+        """
+        Get the currently recognized word (thread-safe).
+        
+        Returns:
+            str: Currently recognized word, or None if no word recognized
+        """
+        with self._lock:
+            return self.current_word
     
     def find_closest_image(self, word: str) -> Optional[str]:
         """
@@ -217,47 +256,26 @@ class VoiceInteraction:
             show_image = self.enable_images
         
         if not word:
-            # No word recognized - show last image with status indicator if available
+            # No word recognized - show last image with listening indicator if available
             if self.enable_images and self.last_image_data:
-                # Determine status indicator
-                status_indicator = None
-                display_text = None
-                if hasattr(self, 'status'):
-                    if self.status == "processing":
-                        status_indicator = "thinking"  # Orange/yellow indicator
-                        display_text = "Thinking..."
-                    else:
-                        status_indicator = "listening"  # Gray indicator
-                        display_text = "Listening..."
-                
+                # Always show listening indicator when we have an image
                 return DisplayContent(
                     mode="voice",
                     color=(255, 255, 255),
                     background_color=(0, 0, 0),
-                    text=display_text,  # Show status text below image
+                    text=None,  # No text when no new word
                     image_data=self.last_image_data,
                     image_width=16,
                     image_height=16,
-                    status_indicator=status_indicator
+                    status_indicator="listening"  # Always listening
                 )
             
-            # No image to show - show status text
-            status_text = "Listening..."
-            status_color = (128, 128, 128)  # Gray text
-            
-            if hasattr(self, 'status'):
-                if self.status == "processing":
-                    status_text = "Thinking..."
-                    status_color = (255, 200, 0)  # Orange/yellow for processing
-                else:
-                    status_text = "Listening..."
-                    status_color = (128, 128, 128)  # Gray for listening
-            
+            # No image to show - show listening text
             return DisplayContent(
                 mode="voice",
-                color=status_color,
+                color=(128, 128, 128),  # Gray text
                 background_color=(32, 32, 32),  # Dark background
-                text=status_text
+                text="Listening..."
             )
         
         if show_image:
@@ -282,7 +300,7 @@ class VoiceInteraction:
                             image_data=image_data,
                             image_width=16,
                             image_height=16,
-                            status_indicator=None  # No indicator when word is recognized
+                            status_indicator="listening"  # Always listening
                         )
                 except Exception as e:
                     logger.warning(f"Failed to load image for {image_key}: {e}")
