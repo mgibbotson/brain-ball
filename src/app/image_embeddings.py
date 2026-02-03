@@ -91,7 +91,7 @@ class ImageEmbeddings:
         # Compute embedding for the primary label (first one)
         # For better matching, we could average embeddings of all labels
         primary_label = labels[0]
-        embedding = self._model.encode(primary_label, convert_to_numpy=True)
+        embedding = self._model.encode(primary_label, convert_to_numpy=True, show_progress_bar=False)
         self._image_embeddings[image_key] = embedding
         
         logger.debug(f"Registered image '{image_key}' with labels: {labels}")
@@ -118,7 +118,7 @@ class ImageEmbeddings:
         
         try:
             # Convert word to embedding
-            word_embedding = self._model.encode(word, convert_to_numpy=True)
+            word_embedding = self._model.encode(word, convert_to_numpy=True, show_progress_bar=False)
             
             # Compute cosine similarity with all image embeddings
             best_match = None
