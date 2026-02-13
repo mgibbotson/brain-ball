@@ -5,10 +5,12 @@
 # You can still run: --backend device, --test screen, --test mic, light/IMU.
 # Farm mode (voice -> image) requires the full requirements.txt.
 
-# Hardware libraries
+# Hardware libraries (Raspberry Pi)
 adafruit-circuitpython-rgb-display>=2.2.0
 adafruit-blinka>=8.0.0
 gpiozero>=1.6.2
+spidev>=3.6   # SPI device access for LCD (needs SPI enabled: raspi-config → Interface Options → SPI)
+lgpio>=0.2.0  # Preferred pin factory for gpiozero on Pi (avoids fallback warning)
 
 # UI (needed for main entry point; device uses LCD but package still loads)
 pygame>=2.5.0

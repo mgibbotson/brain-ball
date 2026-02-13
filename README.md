@@ -54,7 +54,7 @@ An interactive embedded device application where children interact with sensors 
 - Raspberry Pi Zero W with Raspberry Pi OS installed
 - **Python 3.11 or higher** (required)
 - Hardware components connected (see hardware connections above)
-- SPI interface enabled (`sudo raspi-config` → Interface Options → SPI → Enable)
+- **SPI enabled** (required for LCD): run `sudo raspi-config` → **Interface Options** → **SPI** → **Yes**, then **reboot**. After reboot, `ls /dev/spidev*` should show `/dev/spidev0.0` and `/dev/spidev0.1`.
 
 **For macOS users (voice features)**:
 - PortAudio library (required for `pyaudio`):
@@ -171,6 +171,20 @@ python -m src.app.main --backend desktop --test screen
 ```
 
 **Note**: Use `python -m src.app.main` instead of `python src/app/main.py` to ensure Python can find the `src` module. Alternatively, use the `brain-ball` command after installing with `pip install -e .`.
+
+### Raspberry Pi: LCD / SPI errors
+
+If you see **`/dev/spidev0.0 does not exist`** or **`Falling back from lgpio`** / **`failed to import spidev`**:
+
+1. **Enable SPI and reboot**  
+   `sudo raspi-config` → **Interface Options** → **SPI** → **Yes** → Finish → **Reboot**.  
+   After reboot: `ls /dev/spidev*` should list `spidev0.0` and `spidev0.1`.
+
+2. **Install SPI/Pin packages in your venv** (so Blinka/gpiozero can use the display):
+   ```bash
+   pip install spidev lgpio
+   ```
+   If you used `requirements-device.txt`, these are already included; re-run `pip install -r requirements-device.txt` to be sure.
 
 ## Project Structure
 
