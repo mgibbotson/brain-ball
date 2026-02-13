@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Test script for the ILI9341 LCD on Raspberry Pi.
+Test script for SPI TFT LCD on Raspberry Pi (ILI9341 or GC9A01A).
 
 Run on the device: python scripts/test_lcd.py
 
-Cycles solid colors (red, green, blue, white) then draws a simple pattern.
-Use this to verify wiring, SPI, and whether rotation/color order is wrong.
+Use DISPLAY_TYPE=gc9a01a for the Adafruit 1.28" 240x240 Round TFT (GC9A01A, EYESPI).
+Default is ili9341 (320x240).
+
+Cycles solid colors then draws a simple pattern.
 """
+import os
 import sys
 import time
 
-# Allow running from repo root
 sys.path.insert(0, ".")
 
 
@@ -22,30 +24,36 @@ def main():
     try:
         import board
         import busio
-        from adafruit_rgb_display import ili9341
         from digitalio import DigitalInOut
-    except ImportError as e:
+    except ImportError:
         print("This script must run on a Raspberry Pi with adafruit_rgb_display installed.")
         print("Install: pip install adafruit-circuitpython-rgb-display adafruit-blinka spidev")
         sys.exit(1)
 
-    # Same pins as src/lib/lcd/hardware.py
     cs = DigitalInOut(board.D22)
     dc = DigitalInOut(board.D17)
     rst = DigitalInOut(board.D27)
     spi = busio.SPI(clock=board.SCLK, MOSI=board.MOSI)
 
-    # Try rotation 0 first; if image is sideways/upside-down, try 90, 180, or 270
-    rotation = int(__import__("os").environ.get("LCD_ROTATION", "0"))
+    display_type = (os.environ.get("DISPLAY_TYPE") or "ili9341").strip().lower()
+    rotation = int(os.environ.get("LCD_ROTATION", "0"))
     if rotation not in (0, 90, 180, 270):
         rotation = 0
 
-    print("Initializing LCD (rotation={})...".format(rotation))
-    display = ili9341.ILI9341(
-        spi, cs=cs, dc=dc, rst=rst, width=320, height=240, rotation=rotation
-    )
-
-    W, H = 320, 240
+    if display_type == "gc9a01a":
+        from adafruit_rgb_display import gc9a01a
+        W, H = 240, 240
+        print("Initializing GC9A01A 240x240 round (rotation={})...".format(rotation))
+        display = gc9a01a.GC9A01A(
+            spi, dc=dc, cs=cs, rst=rst, width=W, height=H, rotation=rotation
+        )
+    else:
+        from adafruit_rgb_display import ili9341
+        W, H = 320, 240
+        print("Initializing ILI9341 320x240 (rotation={})...".format(rotation))
+        display = ili9341.ILI9341(
+            spi, cs=cs, dc=dc, rst=rst, width=W, height=H, rotation=rotation
+        )
     colors = [
         ("Red",   rgb_to_565(255, 0, 0)),
         ("Green", rgb_to_565(0, 255, 0)),
@@ -85,6 +93,7 @@ def main():
     display.fill(rgb_to_565(0, 0, 0))
     print("Done. If you saw nothing or wrong colors:")
     print("  - Check wiring (CS=GPIO22, DC=GPIO17, RST=GPIO27, SCK=23, MOSI=19).")
+    print("  - For 1.28\" round display: DISPLAY_TYPE=gc9a01a python scripts/test_lcd.py")
     print("  - Try: LCD_ROTATION=180 python scripts/test_lcd.py")
     print("  - Some boards use BGR; we use RGB.")
 

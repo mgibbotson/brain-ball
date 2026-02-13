@@ -1,4 +1,9 @@
-"""Hardware implementation of LCDInterface for Adafruit ILI9341."""
+"""Hardware implementation of LCDInterface for Adafruit TFT displays.
+
+Supports:
+- ILI9341: 320x240 rectangular (e.g. 2.8" TFT)
+- GC9A01A: 240x240 round (Adafruit 1.28" Round TFT with EYESPI - Product 6178)
+"""
 
 import os
 from src.lib.lcd.interface import LCDInterface
@@ -7,59 +12,56 @@ from src.app.display_content import DisplayContent
 
 
 class LCDHardware(LCDInterface):
-    """Hardware implementation for Adafruit ILI9341 LCD display."""
-    
-    # Default SPI pins for Raspberry Pi Zero W (set in __init__)
-    DEFAULT_CS_PIN = None  # Set dynamically in __init__
-    DEFAULT_DC_PIN = None  # Set dynamically in __init__
-    DEFAULT_RST_PIN = None  # Set dynamically in __init__
-    
+    """Hardware implementation for Adafruit SPI TFT (ILI9341 or GC9A01A)."""
+
+    DEFAULT_CS_PIN = None
+    DEFAULT_DC_PIN = None
+    DEFAULT_RST_PIN = None
+
     def __init__(self):
         """Initialize hardware LCD display."""
-        # Lazy import - only import when actually instantiating on Raspberry Pi
         try:
             import board
             import busio
-            from adafruit_rgb_display import ili9341
             from digitalio import DigitalInOut
         except (ImportError, NotImplementedError) as e:
             raise HardwareError(
                 f"Adafruit libraries not available - not running on Raspberry Pi: {e}"
             )
-        
+
         self._initialized = False
         self._display = None
-        self._board = board
-        self._busio = busio
-        self._ili9341 = ili9341
-        self._DigitalInOut = DigitalInOut
-        
-        # Pin assignments to match physical wiring (Raspberry Pi BCM / board.Dxx):
-        # TFTCS (CS) → Physical 15 = GPIO 22 = D22
-        # RST       → Physical 13 = GPIO 27 = D27
-        # DC        → Physical 11 = GPIO 17 = D17
-        # SCK       → Physical 23 = GPIO 11 (board.SCLK), MOSI → Physical 19 = GPIO 10 (board.MOSI)
+        self._width = 320
+        self._height = 240
+
+        # Pins: TFTCS=GPIO22/D22, RST=GPIO27/D27, DC=GPIO17/D17; SCK=23, MOSI=19
         self.DEFAULT_CS_PIN = board.D22
         self.DEFAULT_DC_PIN = board.D17
         self.DEFAULT_RST_PIN = board.D27
-        
+
+        display_type = (os.environ.get("DISPLAY_TYPE") or "ili9341").strip().lower()
+        rotation = int(os.environ.get("LCD_ROTATION", "0"))
+        if rotation not in (0, 90, 180, 270):
+            rotation = 0
+
         try:
-            # Initialize SPI bus
             spi = busio.SPI(clock=board.SCLK, MOSI=board.MOSI)
-            
-            # Initialize display pins
             cs = DigitalInOut(self.DEFAULT_CS_PIN)
             dc = DigitalInOut(self.DEFAULT_DC_PIN)
             rst = DigitalInOut(self.DEFAULT_RST_PIN)
-            
-            # Rotation: 0, 90, 180, 270. If image is sideways/upside-down, set LCD_ROTATION env.
-            rotation = int(os.environ.get("LCD_ROTATION", "0"))
-            if rotation not in (0, 90, 180, 270):
-                rotation = 0
-            # Initialize ILI9341 display
-            self._display = ili9341.ILI9341(
-                spi, cs=cs, dc=dc, rst=rst, width=320, height=240, rotation=rotation
-            )
+
+            if display_type == "gc9a01a":
+                from adafruit_rgb_display import gc9a01a
+                self._width, self._height = 240, 240
+                self._display = gc9a01a.GC9A01A(
+                    spi, dc=dc, cs=cs, rst=rst, width=240, height=240, rotation=rotation
+                )
+            else:
+                from adafruit_rgb_display import ili9341
+                self._width, self._height = 320, 240
+                self._display = ili9341.ILI9341(
+                    spi, cs=cs, dc=dc, rst=rst, width=320, height=240, rotation=rotation
+                )
         except Exception as e:
             raise HardwareError(f"Failed to initialize LCD: {e}")
     
@@ -145,9 +147,9 @@ class LCDHardware(LCDInterface):
         
         try:
             # Get display dimensions
-            display_width = 320
-            display_height = 240
-            
+            display_width = self._width
+            display_height = self._height
+
             # Calculate centering position
             img_width = image_width
             img_height = image_height
@@ -185,9 +187,9 @@ class LCDHardware(LCDInterface):
             return
         
         try:
-            display_width = 320
-            display_height = 240
-            
+            display_width = self._width
+            display_height = self._height
+
             # Position text below the image with generous spacing
             image_start_x = (display_width - image_width) // 2
             image_start_y = (display_height - image_height) // 2
@@ -215,9 +217,9 @@ class LCDHardware(LCDInterface):
             return
         
         try:
-            display_width = 320
-            display_height = 240
-            
+            display_width = self._width
+            display_height = self._height
+
             # Position indicator below the text (which is below the image)
             image_start_x = (display_width - image_width) // 2
             image_start_y = (display_height - image_height) // 2

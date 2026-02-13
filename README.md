@@ -24,7 +24,7 @@ An interactive embedded device application where children interact with sensors 
 
 - Raspberry Pi Zero W
 - Photoresistor (with 10kΩ resistor for voltage divider circuit)
-- Adafruit 2.8" TFT LCD Display (Product 6178 - ILI9341)
+- SPI TFT display: **ILI9341** (320x240) or **Adafruit 1.28" 240x240 Round TFT - GC9A01A** (EYESPI). For the round display set `DISPLAY_TYPE=gc9a01a`.
 - Microphone (USB microphone for desktop, I2S microphone for device)
 
 ### Hardware Connections
@@ -46,7 +46,10 @@ An interactive embedded device application where children interact with sensors 
   - DC → GPIO 17 / Physical 11
   - Backlight (BL) → GPIO 13 / Physical 33 (optional)
 
-*Note: Pin assignments are set in `src/lib/lcd/hardware.py`; adjust there if your wiring differs.*
+For the **1.28" 240x240 Round TFT (GC9A01A, EYESPI)** use the same SPI pins; set before running:
+`export DISPLAY_TYPE=gc9a01a`
+
+*Pin assignments are in `src/lib/lcd/hardware.py`; adjust there if your wiring differs.*
 
 ## Setup
 
@@ -197,7 +200,9 @@ If the backlight or something changes but you don’t see a clear image:
    ```
    If you see solid colors and a rectangle/border, wiring and SPI are fine; try rotation (below). If you see nothing, double-check wiring and SPI.
 
-2. **Try rotation** – Many boards are mounted 180° or 90°. Set before running the app or test script:
+2. **Use the correct display type** – For the **Adafruit 1.28" 240x240 Round TFT (GC9A01A)** set `DISPLAY_TYPE=gc9a01a` before running (same pins; driver and size differ from ILI9341).
+
+3. **Try rotation** – Many boards are mounted 180° or 90°. Set before running:
    ```bash
    export LCD_ROTATION=180
    python scripts/test_lcd.py
@@ -206,7 +211,7 @@ If the backlight or something changes but you don’t see a clear image:
    ```
    Use `0`, `90`, `180`, or `270` until the image is right-side up.
 
-3. **Colors wrong (e.g. red/blue swapped)** – The driver uses RGB; some panels expect BGR. If needed, we can add a BGR option to the LCD hardware.
+4. **Colors wrong (e.g. red/blue swapped)** – The driver uses RGB; some panels expect BGR. If needed, we can add a BGR option to the LCD hardware.
 
 ## Project Structure
 
