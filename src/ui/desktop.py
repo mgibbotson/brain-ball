@@ -91,6 +91,8 @@ class UIDesktop(UIInterface):
                     self._render_status_indicator(status_indicator, surface=self._circle_surface)
             elif content.mode == "imu" and content.text:
                 self._render_arrow(content, surface=self._circle_surface)
+            elif getattr(content, "level", None) is not None:
+                self._render_level_bar(content, surface=self._circle_surface)
             elif content.text:
                 # Render text if provided
                 font = pygame.font.Font(None, 36)
@@ -195,7 +197,32 @@ class UIDesktop(UIInterface):
             (arrowhead_point2_x, arrowhead_point2_y)
         ]
         pygame.draw.polygon(surface, arrow_color, arrowhead_points)
-    
+
+    def _render_level_bar(self, content: DisplayContent, surface=None) -> None:
+        """Render a horizontal level/amplitude bar (0–1)."""
+        if surface is None:
+            surface = self._screen
+        level = getattr(content, "level", 0.0) or 0.0
+        level = max(0.0, min(1.0, level))
+        cx, cy = self.CIRCLE_CENTER_X, self.CIRCLE_CENTER_Y
+        bar_width = int(self.CIRCLE_RADIUS * 1.4)
+        bar_height = 24
+        bar_y = cy + self.CIRCLE_RADIUS // 2
+        # Bar background
+        bg_rect = (cx - bar_width // 2, bar_y - bar_height // 2, bar_width, bar_height)
+        pygame.draw.rect(surface, (60, 60, 60), bg_rect)
+        # Filled portion
+        fill_width = int(bar_width * level)
+        if fill_width > 0:
+            fill_rect = (cx - bar_width // 2, bar_y - bar_height // 2, fill_width, bar_height)
+            pygame.draw.rect(surface, content.color, fill_rect)
+        # Label above bar
+        if content.text:
+            font = pygame.font.Font(None, 28)
+            text_surface = font.render(content.text, True, content.color)
+            text_rect = text_surface.get_rect(center=(cx, bar_y - bar_height))
+            surface.blit(text_surface, text_rect)
+
     def _render_pixel_art(self, content: DisplayContent, surface=None) -> None:
         """Render pixel art image on the surface."""
         if surface is None:

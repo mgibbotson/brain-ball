@@ -16,11 +16,12 @@ class DisplayContent:
         image_data: list = None,
         image_width: int = None,
         image_height: int = None,
-        status_indicator: str = None
+        status_indicator: str = None,
+        level: float = None,
     ):
         """
         Initialize DisplayContent.
-        
+
         Parameters:
             mode: Display mode - "dark", "light", "transitioning", "imu", or "voice"
             color: RGB color tuple (r, g, b) where each value is 0-255
@@ -31,9 +32,7 @@ class DisplayContent:
             image_width: Optional width of image in pixels
             image_height: Optional height of image in pixels
             status_indicator: Optional status indicator ("listening", "thinking", or None)
-            
-        Raises:
-            ValueError: If validation fails
+            level: Optional amplitude/level 0.0-1.0 for mic level meter (voice mode)
         """
         # Validation
         if mode not in self.VALID_MODES:
@@ -75,3 +74,4 @@ class DisplayContent:
         self.image_width = image_width
         self.image_height = image_height
         self.status_indicator = status_indicator
+        self.level = level if level is None else max(0.0, min(1.0, float(level)))

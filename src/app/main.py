@@ -18,6 +18,7 @@ from src.ui.desktop import UIDesktop
 from src.ui.device import UIDevice
 from src.app.light_interaction import LightInteraction
 from src.app.imu_interaction import IMUInteraction
+from src.app.mic_level_interaction import MicLevelInteraction
 from src.app.voice_interaction import VoiceInteraction
 from src.app.image_embeddings import create_farm_animal_embeddings
 from src.app.display_content import DisplayContent
@@ -341,9 +342,8 @@ def main():
         ui.render(loading_content)
         ui.update()  # Process events to show the screen
     
-    # Check and download required resources for voice modes
-    if sensor_type == "mic" or sensor_type == "farm":
-        # Check Vosk model
+    # Check and download required resources for voice modes (farm needs Vosk; mic test does not)
+    if sensor_type == "farm":
         if not check_vosk_model():
             if args.backend == "desktop":
                 loading_content = DisplayContent(
@@ -359,8 +359,7 @@ def main():
                 logger.error("Vosk model is required for voice features")
                 logger.info("Please run: python scripts/download_vosk_model.py")
                 sys.exit(1)
-        
-        # Check sprites for farm mode (voice block only)
+        # Check sprites for farm mode
         if sensor_type == "farm":
             if not check_sprites():
                 if args.backend == "desktop":
@@ -411,9 +410,13 @@ def main():
     try:
         if sensor_type == "imu":
             interaction = IMUInteraction(imu=sensor)
-        elif sensor_type == "mic" or sensor_type == "farm":
+        elif sensor_type == "mic":
+            # Mic test: amplitude/level only, no Vosk
+            interaction = MicLevelInteraction(microphone=sensor)
+            logger.info("Mic test mode: showing voice intensity (no speech-to-text)")
+        elif sensor_type == "farm":
             # Show loading screen for farm mode (embedding model takes time to load)
-            if sensor_type == "farm" and args.backend == "desktop":
+            if args.backend == "desktop":
                 loading_content = DisplayContent(
                     mode="voice",
                     color=(255, 255, 0),  # Yellow text
@@ -423,27 +426,19 @@ def main():
                 ui.render(loading_content)
                 ui.update()
                 logger.info("Loading embedding model (this may take a moment)...")
-            
-            # Create image embeddings for farm mode
             image_embeddings = None
-            if sensor_type == "farm":
-                try:
-                    image_embeddings = create_farm_animal_embeddings()
-                    logger.info("Embedding model loaded successfully")
-                except Exception as e:
-                    logger.warning(f"Failed to create image embeddings: {e}")
-                    logger.info("Continuing with text-only mode")
-            
-            # Create voice interaction
-            enable_images = (sensor_type == "farm")
+            try:
+                image_embeddings = create_farm_animal_embeddings()
+                logger.info("Embedding model loaded successfully")
+            except Exception as e:
+                logger.warning(f"Failed to create image embeddings: {e}")
+                logger.info("Continuing with text-only mode")
             interaction = VoiceInteraction(
                 microphone=sensor,
                 lcd=lcd,
                 image_embeddings=image_embeddings,
-                enable_images=enable_images
+                enable_images=True,
             )
-            
-            # Start continuous recognition in background thread
             try:
                 interaction.start_continuous_recognition()
                 logger.info("Continuous voice recognition started")
@@ -516,22 +511,22 @@ def main():
                     lcd.update_display(content)
                     ui.render(content)
                     logger.debug(f"Display: accel=({accel[0]:.2f}, {accel[1]:.2f}, {accel[2]:.2f})")
-                elif sensor_type == "mic" or sensor_type == "farm":
-                    # Voice interaction - background thread continuously updates word/image
-                    # Just get the current recognized word (thread-safe)
-                    word = interaction.recognize_word()
-                    
-                    # Generate display content (always shows listening, with current word/image)
-                    content = interaction.generate_display_content(word)
-                    if word:
-                        logger.debug(f"Display: word={word}, mode={content.mode}")
-                    
+                elif sensor_type == "mic":
+                    # Mic test: level from background thread, no blocking
+                    content = interaction.generate_display_content()
                     lcd.update_display(content)
                     if args.backend == "desktop":
                         ui.render(content)
-                        ui.update()  # Update immediately
-                    
-                    # Small delay - recognition happens in background thread
+                    time.sleep(0.02)  # ~50 FPS; level updates in background
+                elif sensor_type == "farm":
+                    word = interaction.recognize_word()
+                    content = interaction.generate_display_content(word)
+                    if word:
+                        logger.debug(f"Display: word={word}, mode={content.mode}")
+                    lcd.update_display(content)
+                    if args.backend == "desktop":
+                        ui.render(content)
+                        ui.update()
                     time.sleep(0.05)
                 elif sensor_type == "button":
                     # Button interaction (not yet implemented)
@@ -549,9 +544,10 @@ def main():
             except HardwareError as e:
                 logger.warning(f"Hardware error (continuing): {e}")
                 # Continue running even if hardware fails
-            
-            # Small delay to avoid excessive CPU usage
-            time.sleep(0.1)
+
+            # Delay: mic has its own short sleep for low latency; others use 0.1s
+            if sensor_type != "mic":
+                time.sleep(0.1)
             
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
@@ -563,12 +559,12 @@ def main():
         # Cleanup
         logger.info("Cleaning up...")
         try:
-            # Stop continuous recognition if running
             if interaction and hasattr(interaction, 'stop_continuous_recognition'):
                 interaction.stop_continuous_recognition()
+            if interaction and hasattr(interaction, 'stop'):
+                interaction.stop()
         except Exception as e:
-            logger.error(f"Error stopping recognition: {e}")
-        
+            logger.error(f"Error during cleanup: {e}")
         try:
             ui.cleanup()
         except Exception as e:

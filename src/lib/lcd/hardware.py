@@ -115,9 +115,10 @@ class LCDHardware(LCDInterface):
                     self._render_status_indicator(status_indicator, image_width, image_height)
             elif content.mode == "imu" and content.text:
                 self._render_imu_arrow(content)
+            elif getattr(content, "level", None) is not None:
+                self._render_level_bar(content)
             elif content.text:
-                # Simple text rendering (would need font library for production)
-                pass
+                pass  # Text would need font library
             
         except Exception as e:
             raise HardwareError(f"Failed to update LCD: {e}")
@@ -211,6 +212,22 @@ class LCDHardware(LCDInterface):
         start_x = (self._width - scaled_w) // 2
         start_y = (self._height - scaled_h) // 2
         return start_x, start_y, scaled_w, scaled_h
+
+    def _render_level_bar(self, content: DisplayContent) -> None:
+        """Render a horizontal level/amplitude bar (0–1)."""
+        level = getattr(content, "level", 0.0) or 0.0
+        level = max(0.0, min(1.0, level))
+        W, H = self._width, self._height
+        bar_width = int(W * 0.8)
+        bar_height = max(4, H // 20)
+        bar_x = (W - bar_width) // 2
+        bar_y = H - bar_height - (H // 10)
+        bg_color = self._rgb_to_565((60, 60, 60))
+        fill_color = self._rgb_to_565(content.color)
+        self._display.fill_rectangle(bar_x, bar_y, bar_width, bar_height, bg_color)
+        fill_width = int(bar_width * level)
+        if fill_width > 0:
+            self._display.fill_rectangle(bar_x, bar_y, fill_width, bar_height, fill_color)
 
     def _render_image(self, content: DisplayContent) -> None:
         """

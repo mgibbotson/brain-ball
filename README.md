@@ -16,7 +16,7 @@ An interactive embedded device application where children interact with sensors 
 - Voice-to-image matching using semantic vector embeddings
 - Stardew Valley-style 16x16 pixel art sprites
 - Two test modes:
-  - `--test mic`: Speech-to-text only (for testing recognition)
+  - `--test mic`: Voice intensity (amplitude level bar, no speech-to-text)
   - `--test farm`: Full pipeline (speech-to-text → image display)
   - `--test screen`: Cycles through 10 animal images (no mic)
 
@@ -25,7 +25,7 @@ An interactive embedded device application where children interact with sensors 
 - Raspberry Pi Zero W
 - Photoresistor (with 10kΩ resistor for voltage divider circuit)
 - SPI TFT display: **ILI9341** (320x240) or **Adafruit 1.28" 240x240 Round TFT - GC9A01A** (EYESPI). For the round display set `DISPLAY_TYPE=gc9a01a`.
-- Microphone (USB microphone for desktop, I2S microphone for device)
+- Microphone: **USB** on desktop; **Adafruit I2S MEMS Microphone Breakout (SPH0645)** [Product 3421](https://www.adafruit.com/product/3421) on device.
 
 ### Hardware Connections
 
@@ -59,6 +59,15 @@ For the **1.28" 240x240 Round TFT (GC9A01A, EYESPI)** use the same SPI pins; set
 
 Enable **I2C**: `sudo raspi-config` → Interface Options → I2C → Yes, then reboot. Use `--test imu` with `--backend device` to run the IMU arrow on the LCD.
 
+**Microphone (Adafruit I2S MEMS - SPH0645, [Product 3421](https://www.adafruit.com/product/3421)):**
+- 3V → 3.3V rail
+- GND → GND
+- BCLK → Physical 12 (GPIO 18)
+- DOUT → Physical 38 (GPIO 20) — data from mic to Pi
+- LRCL → Physical 35 (GPIO 19)
+- SEL → NC (not connected; or tie to GND/3V for left/right channel)
+
+
 ## Setup
 
 ### Prerequisites
@@ -67,6 +76,10 @@ Enable **I2C**: `sudo raspi-config` → Interface Options → I2C → Yes, then 
 - **Python 3.11 or higher** (required)
 - Hardware components connected (see hardware connections above)
 - **SPI enabled** (required for LCD): run `sudo raspi-config` → **Interface Options** → **SPI** → **Yes**, then **reboot**. After reboot, `ls /dev/spidev*` should show `/dev/spidev0.0` and `/dev/spidev0.1`.
+- **I2S** (Pi Zero W has no I2S option in raspi-config): add a device-tree overlay so the mic appears as an ALSA device. Edit the boot config (on Bookworm: `/boot/firmware/config.txt`; on Bullseye: `/boot/config.txt`) and add:
+`dtoverlay=googlevoicehat-soundcard`
+Then reboot. If the I2S mic is not the default input, set `MIC_INPUT_DEVICE` to the ALSA device name (e.g. `plughw:CARD=sndrpigooglevoi,0`).
+
 
 **For macOS users (voice features)**:
 - PortAudio library (required for `pyaudio`):
@@ -172,7 +185,7 @@ python -m src.app.main --backend desktop
 
 **Voice Features** (requires Vosk model):
 ```bash
-# Speech-to-text only mode (test recognition)
+# Mic test: voice intensity level (no Vosk required)
 python -m src.app.main --backend desktop --test mic
 
 # Full pipeline: speech-to-text → image display
