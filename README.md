@@ -98,6 +98,27 @@ An interactive embedded device application where children interact with sensors 
    
    The `-e` flag installs the package in "editable" mode, allowing Python to find the `src` module.
 
+   **Raspberry Pi: low disk space**  
+   If `pip install -r requirements.txt` fails with `OSError: [Errno 28] No space left on device` (e.g. when downloading scipy), either free space or use the minimal device requirements (no voice→image farm mode on device):
+
+   ```bash
+   # Option A: Free space, then install full requirements
+   pip cache purge
+   df -h /                    # check free space (aim for ~500MB+ free)
+   sudo journalctl --vacuum-size=50M   # shrink logs
+   # Remove other unused software if needed, then:
+   pip install -r requirements.txt
+   pip install -e .
+   ```
+
+   ```bash
+   # Option B: Minimal install (no sentence-transformers/scipy) – screen test, mic, light/IMU only
+   pip install -r requirements-device.txt
+   pip install -e .
+   ```
+
+   With Option B you can run `--backend device`, `--test screen`, `--test mic`, and light/IMU; farm mode (voice→image) requires the full `requirements.txt`.
+
 4. **Download Stardew Valley sprites** (required for farm mode):
    ```bash
    python scripts/download_sprites.py
