@@ -19,6 +19,8 @@ from src.app.light_interaction import LightInteraction
 from src.app.imu_interaction import IMUInteraction
 from src.app.voice_interaction import VoiceInteraction
 from src.app.image_embeddings import create_farm_animal_embeddings
+from src.app.display_content import DisplayContent
+from src.app.pixel_art import get_pixel_art_image
 from src.lib import HardwareError
 from src.ui import UIError
 
@@ -44,6 +46,13 @@ REQUIRED_ANIMAL_TYPES = [
     "dog",
     "cat",
 ]
+
+# Animals to cycle through in --test screen (10 images)
+SCREEN_TEST_ANIMALS = [
+    "cow", "pig", "chicken", "sheep", "horse",
+    "duck", "goat", "dog", "cat", "rabbit",
+]
+SCREEN_CYCLE_SECONDS = 2.0
 
 
 def check_vosk_model() -> bool:
@@ -257,9 +266,9 @@ def main():
     )
     parser.add_argument(
         "--test",
-        choices=["imu", "mic", "farm", "button"],
+        choices=["imu", "mic", "farm", "button", "screen"],
         default="imu",
-        help="Test mode: select component to test (IMU, mic for speech-to-text, farm for full pipeline, or button)"
+        help="Test mode: select component to test (IMU, mic, farm, button, or screen to cycle 10 animal images)"
     )
     args = parser.parse_args()
     
@@ -298,6 +307,10 @@ def main():
             sensor_type = "button"
             logger.info("Button test mode - not yet implemented")
             # TODO: Create button mock/hardware
+            sensor = None
+        elif test_mode == "screen":
+            sensor_type = "screen"
+            logger.info("Screen test mode - cycling through 10 animal images")
             sensor = None
     
     # Initialize UI
@@ -345,7 +358,7 @@ def main():
                 logger.info("Please run: python scripts/download_vosk_model.py")
                 sys.exit(1)
         
-        # Check sprites for farm mode
+        # Check sprites for farm mode (voice block only)
         if sensor_type == "farm":
             if not check_sprites():
                 if args.backend == "desktop":
@@ -364,6 +377,23 @@ def main():
                     logger.warning("Some sprites may be missing. Farm mode may not work correctly.")
                     logger.info("Please run: python scripts/download_sprites.py")
                     # Continue anyway - some sprites might still work
+    
+    # Check sprites for screen test (no voice/mic required)
+    if sensor_type == "screen":
+        if not check_sprites():
+            if args.backend == "desktop":
+                loading_content = DisplayContent(
+                    mode="voice",
+                    color=(255, 200, 0),
+                    background_color=(32, 32, 32),
+                    text="Downloading\nsprites..."
+                )
+                ui.render(loading_content)
+                ui.update()
+            logger.info("Starting sprite download...")
+            if not ensure_sprites_with_progress(project_root=PROJECT_ROOT, ui=ui if args.backend == "desktop" else None):
+                logger.warning("Some sprites may be missing. Screen test may not show all animals.")
+                logger.info("Please run: python scripts/download_sprites.py")
     
     # Initialize microphone if in mic/farm mode
     if sensor_type == "mic" or sensor_type == "farm":
@@ -432,6 +462,8 @@ def main():
     # Main loop
     logger.info("Starting main loop...")
     running = True
+    screen_index = 0
+    last_screen_switch = time.monotonic()
     
     try:
         while running:
@@ -440,6 +472,36 @@ def main():
             
             # Update display based on sensor
             try:
+                if sensor_type == "screen":
+                    # Cycle through 10 animal images every SCREEN_CYCLE_SECONDS
+                    now = time.monotonic()
+                    if now - last_screen_switch >= SCREEN_CYCLE_SECONDS:
+                        last_screen_switch = now
+                        screen_index = (screen_index + 1) % len(SCREEN_TEST_ANIMALS)
+                    animal_key = SCREEN_TEST_ANIMALS[screen_index]
+                    image_data = get_pixel_art_image(animal_key)
+                    if image_data is not None:
+                        content = DisplayContent(
+                            mode="voice",
+                            color=(255, 255, 255),
+                            background_color=(32, 32, 32),
+                            text=animal_key,
+                            image_data=image_data,
+                            image_width=16,
+                            image_height=16,
+                        )
+                    else:
+                        content = DisplayContent(
+                            mode="voice",
+                            color=(255, 200, 0),
+                            background_color=(32, 32, 32),
+                            text=animal_key or "?",
+                        )
+                    lcd.update_display(content)
+                    if args.backend == "desktop":
+                        ui.render(content)
+                    time.sleep(0.1)
+                    continue
                 if interaction is None:
                     logger.warning("No interaction logic available - skipping update")
                     time.sleep(0.1)

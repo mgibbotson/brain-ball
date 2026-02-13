@@ -18,6 +18,7 @@ An interactive embedded device application where children interact with sensors 
 - Two test modes:
   - `--test mic`: Speech-to-text only (for testing recognition)
   - `--test farm`: Full pipeline (speech-to-text → image display)
+  - `--test screen`: Cycles through 10 animal images (no mic)
 
 ## Hardware
 
@@ -143,6 +144,9 @@ python -m src.app.main --backend desktop --test mic
 
 # Full pipeline: speech-to-text → image display
 python -m src.app.main --backend desktop --test farm
+
+# Cycle through 10 animal images (screen test)
+python -m src.app.main --backend desktop --test screen
 ```
 
 **Note**: Use `python -m src.app.main` instead of `python src/app/main.py` to ensure Python can find the `src` module. Alternatively, use the `brain-ball` command after installing with `pip install -e .`.
