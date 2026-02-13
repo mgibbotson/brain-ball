@@ -10,6 +10,7 @@ from pathlib import Path
 from src.lib.photoresistor.hardware import PhotoresistorHardware
 from src.lib.photoresistor.mock import PhotoresistorMock
 from src.lib.imu.mock import IMUMock
+from src.lib.imu.hardware import IMUHardware
 from src.lib.lcd.hardware import LCDHardware
 from src.lib.lcd.mock import LCDMock
 from src.lib.microphone.hardware import MicrophoneHardware
@@ -288,9 +289,13 @@ def main():
             if args.backend == "desktop":
                 sensor = IMUMock()
             else:
-                # For device backend, would use real IMU hardware (not implemented yet)
-                logger.warning("Real IMU hardware not implemented, using mock")
-                sensor = IMUMock()
+                try:
+                    sensor = IMUHardware()
+                    sensor.initialize()
+                    logger.info("Using ICM-20948 IMU hardware")
+                except Exception as e:
+                    logger.warning("IMU hardware init failed (%s), using mock", e)
+                    sensor = IMUMock()
         elif test_mode == "mic" or test_mode == "farm":
             sensor_type = test_mode
             logger.info(f"Microphone test mode: {test_mode}")

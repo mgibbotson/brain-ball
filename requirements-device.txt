@@ -11,6 +11,7 @@ adafruit-blinka>=8.0.0
 gpiozero>=1.6.2
 spidev>=3.6   # SPI device access for LCD (needs SPI enabled: raspi-config → Interface Options → SPI)
 lgpio>=0.2.0  # Preferred pin factory for gpiozero on Pi (avoids fallback warning)
+sparkfun-qwiic-icm20948>=2.0.0  # IMU (SparkFun 9DoF ICM-20948); Pi: enable I2C in raspi-config
 
 # UI (needed for main entry point; device uses LCD but package still loads)
 pygame>=2.5.0

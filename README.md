@@ -51,6 +51,14 @@ For the **1.28" 240x240 Round TFT (GC9A01A, EYESPI)** use the same SPI pins; set
 
 *Pin assignments are in `src/lib/lcd/hardware.py`; adjust there if your wiring differs.*
 
+**IMU (SparkFun 9DoF ICM-20948, Qwiic):**
+- GND → GND
+- VIN (V+) → 5V
+- DA (SDA) → Physical 3 (GPIO 2 / SDA1)
+- CL (SCL) → Physical 5 (GPIO 3 / SCL1)
+
+Enable **I2C**: `sudo raspi-config` → Interface Options → I2C → Yes, then reboot. Use `--test imu` with `--backend device` to run the IMU arrow on the LCD.
+
 ## Setup
 
 ### Prerequisites

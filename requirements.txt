@@ -2,6 +2,7 @@
 adafruit-circuitpython-rgb-display>=2.2.0
 adafruit-blinka>=8.0.0
 gpiozero>=1.6.2
+sparkfun-qwiic-icm20948>=2.0.0  # IMU (ICM-20948) over I2C; Pi: enable I2C in raspi-config
 
 # UI for desktop prototyping
 pygame>=2.5.0
