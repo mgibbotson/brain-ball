@@ -59,17 +59,17 @@ Required packages:
 
 ### LCD Display Connection
 
-Connect LCD to Raspberry Pi via SPI:
-- VCC → 5V
-- GND → GND
-- CS → GPIO 8 (CE0)
-- RST → GPIO 25
-- DC → GPIO 24
-- MOSI → GPIO 10 (MOSI)
-- SCK → GPIO 11 (SCLK)
-- LED → 3.3V (backlight)
+Connect LCD to Raspberry Pi via SPI (matches `src/lib/lcd/hardware.py`):
+- VCC → 3.3V (Pin 1)
+- GND → GND (Pin 6)
+- SCK → GPIO 11 (Physical 23)
+- MOSI → GPIO 10 (Physical 19)
+- TFTCS (CS) → GPIO 22 (Physical 15)
+- RST → GPIO 27 (Physical 13)
+- DC → GPIO 17 (Physical 11)
+- Backlight → GPIO 13 (Physical 33), optional
 
-*Note: Pin assignments may vary - check LCD product documentation*
+*Note: To use different pins, edit pin assignments in `src/lib/lcd/hardware.py`.*
 
 ## Running the Application
 

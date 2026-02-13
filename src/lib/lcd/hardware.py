@@ -33,10 +33,14 @@ class LCDHardware(LCDInterface):
         self._ili9341 = ili9341
         self._DigitalInOut = DigitalInOut
         
-        # Set pin constants dynamically (board module now available)
-        self.DEFAULT_CS_PIN = board.D8
-        self.DEFAULT_DC_PIN = board.D24
-        self.DEFAULT_RST_PIN = board.D25
+        # Pin assignments to match physical wiring (Raspberry Pi BCM / board.Dxx):
+        # TFTCS (CS) → Physical 15 = GPIO 22 = D22
+        # RST       → Physical 13 = GPIO 27 = D27
+        # DC        → Physical 11 = GPIO 17 = D17
+        # SCK       → Physical 23 = GPIO 11 (board.SCLK), MOSI → Physical 19 = GPIO 10 (board.MOSI)
+        self.DEFAULT_CS_PIN = board.D22
+        self.DEFAULT_DC_PIN = board.D17
+        self.DEFAULT_RST_PIN = board.D27
         
         try:
             # Initialize SPI bus

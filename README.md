@@ -35,17 +35,18 @@ An interactive embedded device application where children interact with sensors 
 - This creates a voltage divider circuit
 
 **LCD Display:**
-- Connect via SPI:
-  - VCC → 5V
-  - GND → GND
-  - CS → GPIO 8 (CE0)
-  - RST → GPIO 25
-  - DC → GPIO 24
-  - MOSI → GPIO 10 (MOSI)
-  - SCK → GPIO 11 (SCLK)
-  - LED → 3.3V (backlight)
+- Connect via SPI (matches default in software):
+  - VCC → 3.3V (Pin 1)
+  - GND → GND (Pin 6)
+  - SCK → GPIO 11 / Physical 23
+  - MOSI → GPIO 10 / Physical 19
+  - MISO → GPIO 9 / Physical 21 (optional for display)
+  - TFTCS (CS) → GPIO 22 / Physical 15
+  - RST → GPIO 27 / Physical 13
+  - DC → GPIO 17 / Physical 11
+  - Backlight (BL) → GPIO 13 / Physical 33 (optional)
 
-*Note: Pin assignments may vary - check LCD product documentation*
+*Note: Pin assignments are set in `src/lib/lcd/hardware.py`; adjust there if your wiring differs.*
 
 ## Setup
 
