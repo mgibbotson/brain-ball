@@ -72,7 +72,24 @@ class UIDesktop(UIInterface):
                              self.CIRCLE_RADIUS)
             
             # Render content to circular surface
-            if content.mode == "imu" and content.text:
+            # Check for image data using getattr for backward compatibility
+            image_data = getattr(content, 'image_data', None)
+            image_width = getattr(content, 'image_width', None)
+            image_height = getattr(content, 'image_height', None)
+            
+            if image_data and image_width and image_height:
+                # Render pixel art image
+                self._render_pixel_art(content, surface=self._circle_surface)
+                
+                # Render text below image if present (recognized word or status)
+                if content.text:
+                    self._render_text_below_image(content, surface=self._circle_surface)
+                
+                # Render status indicator below the text if present
+                status_indicator = getattr(content, 'status_indicator', None)
+                if status_indicator:
+                    self._render_status_indicator(status_indicator, surface=self._circle_surface)
+            elif content.mode == "imu" and content.text:
                 self._render_arrow(content, surface=self._circle_surface)
             elif content.text:
                 # Render text if provided
@@ -178,6 +195,145 @@ class UIDesktop(UIInterface):
             (arrowhead_point2_x, arrowhead_point2_y)
         ]
         pygame.draw.polygon(surface, arrow_color, arrowhead_points)
+    
+    def _render_pixel_art(self, content: DisplayContent, surface=None) -> None:
+        """Render pixel art image on the surface."""
+        if surface is None:
+            surface = self._screen
+        
+        if not content.image_data or not content.image_width or not content.image_height:
+            return
+        
+        try:
+            # Scale factor for pixel art (make it bigger for visibility)
+            scale = 8  # 16x16 becomes 128x128
+            
+            # Calculate position to center the scaled image
+            scaled_width = content.image_width * scale
+            scaled_height = content.image_height * scale
+            start_x = self.CIRCLE_CENTER_X - scaled_width // 2
+            start_y = self.CIRCLE_CENTER_Y - scaled_height // 2
+            
+            # Draw each pixel scaled up
+            for y, row in enumerate(content.image_data):
+                for x, pixel in enumerate(row):
+                    # Draw a scaled rectangle for each pixel
+                    rect_x = start_x + (x * scale)
+                    rect_y = start_y + (y * scale)
+                    pygame.draw.rect(
+                        surface,
+                        pixel,
+                        (rect_x, rect_y, scale, scale)
+                    )
+        except Exception as e:
+            # If rendering fails, just log and continue
+            pass
+    
+    def _render_text_below_image(self, content: DisplayContent, surface=None) -> None:
+        """Render text below the pixel art image with 16-bit game style font.
+        
+        Args:
+            content: DisplayContent with text to render
+            surface: Pygame surface to render on (defaults to screen)
+        """
+        if surface is None:
+            surface = self._screen
+        
+        if not content.text:
+            return
+        
+        try:
+            # Position text below the image with generous spacing
+            # Image is 16x16 scaled by 8 = 128x128 pixels
+            image_bottom = self.CIRCLE_CENTER_Y + (16 * 8) // 2
+            text_y = image_bottom + 30  # Increased spacing from image
+            
+            # Use a larger font size for 16-bit game style
+            # Try to use a monospace font for retro game look, fallback to default
+            try:
+                # Try to use a monospace font (more retro game-like)
+                font = pygame.font.SysFont("courier", 42, bold=True)
+            except:
+                # Fallback to default font with larger size
+                font = pygame.font.Font(None, 42)
+            
+            text_color = content.color if content.color else (255, 255, 255)
+            # Render with antialiasing disabled for pixelated 16-bit look
+            text_surface = font.render(content.text, False, text_color)
+            text_rect = text_surface.get_rect(center=(self.CIRCLE_CENTER_X, text_y))
+            surface.blit(text_surface, text_rect)
+        except Exception as e:
+            pass  # Don't crash UI if text rendering fails
+    
+    def _render_status_indicator(self, status: str, surface=None) -> None:
+        """Render a small status indicator icon below the text.
+        
+        Args:
+            status: Status type ("listening" or "thinking")
+            surface: Pygame surface to render on (defaults to screen)
+        """
+        if surface is None:
+            surface = self._screen
+        
+        if status not in ("listening", "thinking"):
+            return
+        
+        try:
+            # Position indicator below the text (which is below the image)
+            # Image is 16x16 scaled by 8 = 128x128 pixels
+            # Text is rendered below image, so indicator goes below text
+            image_bottom = self.CIRCLE_CENTER_Y + (16 * 8) // 2
+            text_height = 50  # Approximate text height (larger font)
+            text_spacing = 30  # Spacing between image and text
+            indicator_spacing = 35  # Generous spacing between text and indicator
+            indicator_y = image_bottom + text_spacing + text_height + indicator_spacing
+            indicator_x = self.CIRCLE_CENTER_X
+            
+            if status == "listening":
+                # Draw a microphone icon: dark cone with grey ball at the end, tilted Northeast
+                # Make it 50% bigger
+                scale = 1.5
+                ball_radius = int(4 * scale)
+                ball_color = (148, 148, 148)  # Grey
+                cone_color = (64, 64, 64)  # Dark grey
+                cone_height = int(10 * scale)
+                cone_top_width = int(2 * scale)
+                cone_bottom_width = int(ball_radius * 2)
+                
+                # Tilt 45 degrees Northeast: ball at top-right, cone pointing down-left
+                # Calculate tilt offset (45 degrees = equal x and y offsets)
+                tilt_offset = int(cone_height * 0.7)  # Distance for Northeast tilt
+                
+                # Ball position (Northeast of center)
+                ball_x = indicator_x + tilt_offset
+                ball_y = indicator_y - tilt_offset
+                pygame.draw.circle(surface, ball_color, (ball_x, ball_y), ball_radius)
+                
+                # Cone pointing from ball toward Southwest (down-left)
+                # Calculate cone points relative to ball position
+                cone_start_x = ball_x - cone_bottom_width // 2
+                cone_start_y = ball_y + ball_radius
+                cone_end_x = ball_x - cone_top_width // 2 - tilt_offset
+                cone_end_y = ball_y + ball_radius + cone_height
+                
+                # Draw cone as a triangle
+                cone_points = [
+                    (cone_end_x, cone_end_y),  # Bottom-left (cone tip)
+                    (cone_end_x + cone_top_width, cone_end_y),  # Bottom-right
+                    (cone_start_x + cone_bottom_width, cone_start_y),  # Top-right (at ball)
+                    (cone_start_x, cone_start_y),  # Top-left (at ball)
+                ]
+                pygame.draw.polygon(surface, cone_color, cone_points)
+            elif status == "thinking":
+                # Orange/yellow thinking icon (spinning dots or loading indicator)
+                color = (255, 200, 0)
+                # Draw three dots in a row (loading indicator, slightly larger)
+                for i, offset in enumerate([-8, 0, 8]):
+                    dot_size = 4
+                    pygame.draw.circle(surface, color, 
+                                     (indicator_x + offset, indicator_y), dot_size)
+        except Exception as e:
+            pass  # Don't crash UI if indicator rendering fails
     
     def update(self) -> None:
         """Update Pygame display and handle events."""

@@ -1,0 +1,29 @@
+# Minimal dependencies for running on Raspberry Pi when disk space is limited.
+# Use this instead of requirements.txt if pip fails with "No space left on device".
+#
+# Omits: sentence-transformers, scikit-learn (and their heavy deps: scipy, torch).
+# You can still run: --backend device, --test screen, --test mic, light/IMU.
+# Farm mode (voice -> image) requires the full requirements.txt.
+
+# Hardware libraries (Raspberry Pi)
+adafruit-circuitpython-rgb-display>=2.2.0
+adafruit-blinka>=8.0.0
+gpiozero>=1.6.2
+spidev>=3.6   # SPI device access for LCD (needs SPI enabled: raspi-config → Interface Options → SPI)
+lgpio>=0.2.0  # Preferred pin factory for gpiozero on Pi (avoids fallback warning)
+sparkfun-qwiic-icm20948>=2.0.0  # IMU (SparkFun 9DoF ICM-20948); Pi: enable I2C in raspi-config
+
+# UI (needed for main entry point; device uses LCD but package still loads)
+pygame>=2.5.0
+
+# Speech recognition and audio
+vosk>=0.3.44
+pyaudio>=0.2.14
+numpy>=1.24.0,<2.0.0
+
+# Image processing (for LCD rendering)
+Pillow>=10.0.0
+
+# Testing (optional; omit if you need to save more space)
+# pytest>=7.4.0
+# pytest-mock>=3.12.0
