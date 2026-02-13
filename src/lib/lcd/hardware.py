@@ -5,6 +5,7 @@ Supports:
 - GC9A01A: 240x240 round (Adafruit 1.28" Round TFT with EYESPI - Product 6178)
 """
 
+import math
 import os
 from src.lib.lcd.interface import LCDInterface
 from src.lib import HardwareError
@@ -112,10 +113,10 @@ class LCDHardware(LCDInterface):
                 status_indicator = getattr(content, 'status_indicator', None)
                 if status_indicator:
                     self._render_status_indicator(status_indicator, image_width, image_height)
-            # Render text if provided (and no image)
+            elif content.mode == "imu" and content.text:
+                self._render_imu_arrow(content)
             elif content.text:
                 # Simple text rendering (would need font library for production)
-                # For now, just display the mode
                 pass
             
         except Exception as e:
@@ -129,6 +130,76 @@ class LCDHardware(LCDInterface):
         """Convert RGB tuple to 16-bit RGB565 format."""
         r, g, b = rgb
         return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+
+    def _render_imu_arrow(self, content: DisplayContent) -> None:
+        """Render an arrow on the LCD for IMU mode (direction from content.text)."""
+        try:
+            parts = content.text.split(",")
+            if len(parts) != 3:
+                return
+            angle_deg = float(parts[0])
+            dir_x = float(parts[1])
+            dir_y = float(parts[2])
+            if abs(dir_x) < 1e-6 and abs(dir_y) < 1e-6:
+                dir_x, dir_y = 1.0, 0.0
+                angle_deg = 0.0
+        except (ValueError, TypeError):
+            return
+        try:
+            W, H = self._width, self._height
+            cx, cy = W // 2, H // 2
+            arrow_color = self._rgb_to_565(content.color)
+            arrow_length = int(0.4 * min(W, H))
+            thick = 4
+            end_x = cx + dir_x * arrow_length
+            end_y = cy - dir_y * arrow_length
+            end_x = max(0, min(W - 1, int(end_x)))
+            end_y = max(0, min(H - 1, int(end_y)))
+
+            steps = max(1, arrow_length // 2)
+            for i in range(steps + 1):
+                t = i / steps
+                x = int(cx + t * (end_x - cx))
+                y = int(cy + t * (end_y - cy))
+                x0 = max(0, x - thick // 2)
+                y0 = max(0, y - thick // 2)
+                w = min(thick, W - x0)
+                h = min(thick, H - y0)
+                if w > 0 and h > 0:
+                    self._display.fill_rectangle(x0, y0, w, h, arrow_color)
+
+            angle_rad = math.radians(angle_deg)
+            head_size = min(16, arrow_length // 4)
+            base_x = end_x - math.cos(angle_rad) * head_size
+            base_y = end_y + math.sin(angle_rad) * head_size
+            perp = angle_rad + math.pi / 2
+            half = head_size * 0.6
+            p1_x = base_x + math.cos(perp) * half
+            p1_y = base_y - math.sin(perp) * half
+            p2_x = base_x - math.cos(perp) * half
+            p2_y = base_y + math.sin(perp) * half
+            tip = (end_x, end_y)
+            b1 = (int(p1_x), int(p1_y))
+            b2 = (int(p2_x), int(p2_y))
+            ys = sorted({tip[1], b1[1], b2[1]})
+            y_min, y_max = max(0, min(ys)), min(H - 1, max(ys))
+            for y in range(y_min, y_max + 1):
+                xs = []
+                for (ax, ay), (bx, by) in [(tip, b1), (tip, b2), (b1, b2)]:
+                    if ay == by:
+                        if ay == y:
+                            xs.extend([ax, bx])
+                    else:
+                        t = (y - ay) / (by - ay) if by != ay else 0
+                        if 0 <= t <= 1:
+                            xs.append(ax + t * (bx - ax))
+                if len(xs) >= 2:
+                    x_min = max(0, int(min(xs)))
+                    x_max = min(W - 1, int(max(xs)))
+                    if x_max >= x_min:
+                        self._display.fill_rectangle(x_min, y, x_max - x_min + 1, 1, arrow_color)
+        except Exception as e:
+            raise HardwareError(f"Failed to render IMU arrow: {e}")
 
     def _scaled_image_rect(self, image_width: int, image_height: int):
         """Return (start_x, start_y, scaled_w, scaled_h) so image fills 80% of screen."""
