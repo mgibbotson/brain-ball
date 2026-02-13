@@ -14,6 +14,7 @@ from src.lib.imu.hardware import IMUHardware
 from src.lib.lcd.hardware import LCDHardware
 from src.lib.lcd.mock import LCDMock
 from src.lib.microphone.hardware import MicrophoneHardware
+from src.lib.microphone.mock import RandomWalkMicrophone
 from src.ui.desktop import UIDesktop
 from src.ui.device import UIDevice
 from src.app.light_interaction import LightInteraction
@@ -300,13 +301,17 @@ def main():
         elif test_mode == "mic" or test_mode == "farm":
             sensor_type = test_mode
             logger.info(f"Microphone test mode: {test_mode}")
-            # Use real microphone hardware (desktop uses computer mic, device uses I2S)
-            try:
-                sensor = MicrophoneHardware()
+            if os.environ.get("MIC_RANDOM_WALK", "").lower() in ("1", "true", "yes"):
+                sensor = RandomWalkMicrophone()
                 sensor.initialize()
-            except Exception as e:
-                logger.error(f"Failed to initialize microphone: {e}")
-                sensor = None
+                logger.info("Using random-walk mic input (MIC_RANDOM_WALK)")
+            else:
+                try:
+                    sensor = MicrophoneHardware()
+                    sensor.initialize()
+                except Exception as e:
+                    logger.error(f"Failed to initialize microphone: {e}")
+                    sensor = None
         elif test_mode == "button":
             sensor_type = "button"
             logger.info("Button test mode - not yet implemented")

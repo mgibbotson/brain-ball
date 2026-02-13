@@ -1,8 +1,12 @@
 """Mock implementation of MicrophoneInterface for testing."""
 
+import random
 import struct
 from src.lib.microphone.interface import MicrophoneInterface
 from src.lib import HardwareError
+
+# Match MicLevelInteraction normalization so synthetic RMS maps to 0–1 level
+RMS_NORMALIZE = 8000.0
 
 
 class MicrophoneMock(MicrophoneInterface):
@@ -84,3 +88,54 @@ class MicrophoneMock(MicrophoneInterface):
     def set_available(self, available: bool) -> None:
         """Set availability state (for testing)."""
         self._available = available
+
+
+class RandomWalkMicrophone(MicrophoneInterface):
+    """Mock microphone that yields audio chunks with RMS following a random walk.
+    Use when MIC_RANDOM_WALK=1 to test mic level UI on device without hardware.
+    Implements continuous stream API (start_continuous_stream, read_chunk, stop_continuous_stream).
+    """
+
+    SAMPLE_RATE = 16000
+    CHANNELS = 1
+    CHUNK_SIZE = 4000
+    SAMPLE_WIDTH = 2
+
+    def __init__(self, step: float = 0.025, seed: int | None = None):
+        self._initialized = False
+        self._stream = None
+        self._level = 0.5
+        self._step = max(0.01, min(0.2, step))
+        if seed is not None:
+            random.seed(seed)
+
+    def initialize(self) -> None:
+        self._initialized = True
+
+    def start_continuous_stream(self) -> None:
+        if not self._initialized:
+            raise HardwareError("Microphone not initialized")
+        self._stream = True
+
+    def read_chunk(self, num_frames: int) -> bytes:
+        if not self._initialized or self._stream is None:
+            raise HardwareError("Stream not started")
+        # Random walk: level in [0, 1]
+        self._level = max(0.0, min(1.0, self._level + random.uniform(-self._step, self._step)))
+        # Produce 16-bit mono samples so RMS = level * RMS_NORMALIZE (single value => RMS = |value|)
+        peak = min(32767, int(self._level * RMS_NORMALIZE))
+        return struct.pack(f"<{num_frames}h", *([peak] * num_frames))
+
+    def stop_continuous_stream(self) -> None:
+        self._stream = None
+
+    def record_audio(self, duration_seconds: float) -> bytes:
+        if not self._initialized:
+            raise HardwareError("Mock microphone not initialized")
+        num_samples = int(self.SAMPLE_RATE * duration_seconds)
+        self._level = max(0.0, min(1.0, self._level + random.uniform(-self._step, self._step)))
+        peak = min(32767, int(self._level * RMS_NORMALIZE))
+        return struct.pack(f"<{num_samples}h", *([peak] * num_samples))
+
+    def is_available(self) -> bool:
+        return self._initialized

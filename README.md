@@ -78,7 +78,7 @@ Enable **I2C**: `sudo raspi-config` → Interface Options → I2C → Yes, then 
 - **SPI enabled** (required for LCD): run `sudo raspi-config` → **Interface Options** → **SPI** → **Yes**, then **reboot**. After reboot, `ls /dev/spidev*` should show `/dev/spidev0.0` and `/dev/spidev0.1`.
 - **I2S** (Pi Zero W has no I2S option in raspi-config): add a device-tree overlay so the mic appears as an ALSA device. Edit the boot config (on Bookworm: `/boot/firmware/config.txt`; on Bullseye: `/boot/config.txt`) and add:
 `dtoverlay=googlevoicehat-soundcard`
-Then reboot. If the I2S mic is not the default input, set `MIC_INPUT_DEVICE` to the ALSA device name (e.g. `plughw:CARD=sndrpigooglevoi,0`).
+Then reboot. If the I2S mic is not the default input, set `MIC_INPUT_DEVICE` to the ALSA device name (e.g. `plughw:CARD=sndrpigooglevoi,0`). To test the mic level UI without hardware, set `MIC_RANDOM_WALK=1` (simulated random-walk level).
 
 
 **For macOS users (voice features)**:
