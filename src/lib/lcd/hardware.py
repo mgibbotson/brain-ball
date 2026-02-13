@@ -129,7 +129,18 @@ class LCDHardware(LCDInterface):
         """Convert RGB tuple to 16-bit RGB565 format."""
         r, g, b = rgb
         return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-    
+
+    def _scaled_image_rect(self, image_width: int, image_height: int):
+        """Return (start_x, start_y, scaled_w, scaled_h) so image fills 80% of screen."""
+        max_w = int(0.8 * self._width)
+        max_h = int(0.8 * self._height)
+        scale = max(1, min(max_w // image_width, max_h // image_height))
+        scaled_w = image_width * scale
+        scaled_h = image_height * scale
+        start_x = (self._width - scaled_w) // 2
+        start_y = (self._height - scaled_h) // 2
+        return start_x, start_y, scaled_w, scaled_h
+
     def _render_image(self, content: DisplayContent) -> None:
         """
         Render pixel art image on the display.
@@ -146,32 +157,21 @@ class LCDHardware(LCDInterface):
             return
         
         try:
-            # Get display dimensions
             display_width = self._width
             display_height = self._height
+            start_x, start_y, scaled_w, scaled_h = self._scaled_image_rect(image_width, image_height)
+            scale = scaled_w // image_width
 
-            # Calculate centering position
-            img_width = image_width
-            img_height = image_height
-            start_x = (display_width - img_width) // 2
-            start_y = (display_height - img_height) // 2
-            
-            # Draw image pixel by pixel
             for y, row in enumerate(image_data):
                 for x, pixel in enumerate(row):
                     pixel_color = self._rgb_to_565(pixel)
-                    # Draw pixel at (start_x + x, start_y + y)
-                    # ILI9341 uses pixel method or we can use a bitmap
-                    # For simplicity, draw each pixel individually
-                    try:
-                        # Create a small 1x1 bitmap for each pixel
-                        # Note: This is inefficient but works for small 16x16 images
-                        self._display.pixel(start_x + x, start_y + y, pixel_color)
-                    except AttributeError:
-                        # If pixel method doesn't exist, use alternative method
-                        # Create a bitmap and blit it
-                        # For now, just fill a small area
-                        pass
+                    bx = start_x + x * scale
+                    by = start_y + y * scale
+                    for dy in range(scale):
+                        for dx in range(scale):
+                            px, py = bx + dx, by + dy
+                            if 0 <= px < display_width and 0 <= py < display_height:
+                                self._display.pixel(px, py, pixel_color)
         except Exception as e:
             raise HardwareError(f"Failed to render image: {e}")
     
@@ -187,21 +187,12 @@ class LCDHardware(LCDInterface):
             return
         
         try:
-            display_width = self._width
-            display_height = self._height
-
-            # Position text below the image with generous spacing
-            image_start_x = (display_width - image_width) // 2
-            image_start_y = (display_height - image_height) // 2
-            text_y = image_start_y + image_height + 20  # Increased spacing
-            text_x = image_start_x + image_width // 2
-            
-            # Simple text rendering: draw characters pixel by pixel
-            # For now, we'll use a simple approach - just indicate text is there
-            # Full text rendering would require a font library
-            # For LCD, we'll just draw a small indicator that text should be here
-            # In a full implementation, you'd use a font library to render the text
-            pass  # Text rendering on LCD would require a font library
+            image_start_x, image_start_y, scaled_w, scaled_h = self._scaled_image_rect(image_width, image_height)
+            # Position text below the scaled image
+            text_y = image_start_y + scaled_h + 20
+            text_x = image_start_x + scaled_w // 2
+            # Text rendering on LCD would require a font library; currently a no-op
+            pass
         except Exception as e:
             raise HardwareError(f"Failed to render text: {e}")
     
@@ -219,16 +210,13 @@ class LCDHardware(LCDInterface):
         try:
             display_width = self._width
             display_height = self._height
-
-            # Position indicator below the text (which is below the image)
-            image_start_x = (display_width - image_width) // 2
-            image_start_y = (display_height - image_height) // 2
-            text_spacing = 20  # Spacing between image and text
-            text_height = 30  # Approximate text height
-            indicator_spacing = 25  # Generous spacing between text and indicator
-            text_y = image_start_y + image_height + text_spacing
-            indicator_y = text_y + text_height + indicator_spacing  # Below text with more space
-            indicator_x = image_start_x + image_width // 2
+            image_start_x, image_start_y, scaled_w, scaled_h = self._scaled_image_rect(image_width, image_height)
+            text_spacing = 20
+            text_height = 30
+            indicator_spacing = 25
+            text_y = image_start_y + scaled_h + text_spacing
+            indicator_y = text_y + text_height + indicator_spacing
+            indicator_x = image_start_x + scaled_w // 2
             
             if status == "listening":
                 # Draw a microphone icon: dark cone with grey ball at the end, tilted Northeast
