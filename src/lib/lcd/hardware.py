@@ -1,5 +1,6 @@
 """Hardware implementation of LCDInterface for Adafruit ILI9341."""
 
+import os
 from src.lib.lcd.interface import LCDInterface
 from src.lib import HardwareError
 from src.app.display_content import DisplayContent
@@ -51,9 +52,13 @@ class LCDHardware(LCDInterface):
             dc = DigitalInOut(self.DEFAULT_DC_PIN)
             rst = DigitalInOut(self.DEFAULT_RST_PIN)
             
+            # Rotation: 0, 90, 180, 270. If image is sideways/upside-down, set LCD_ROTATION env.
+            rotation = int(os.environ.get("LCD_ROTATION", "0"))
+            if rotation not in (0, 90, 180, 270):
+                rotation = 0
             # Initialize ILI9341 display
             self._display = ili9341.ILI9341(
-                spi, cs=cs, dc=dc, rst=rst, width=320, height=240
+                spi, cs=cs, dc=dc, rst=rst, width=320, height=240, rotation=rotation
             )
         except Exception as e:
             raise HardwareError(f"Failed to initialize LCD: {e}")

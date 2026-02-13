@@ -187,6 +187,27 @@ If you see **`/dev/spidev0.0 does not exist`** or **`Falling back from lgpio`** 
    ```
    If you used `requirements-device.txt`, these are already included; re-run `pip install -r requirements-device.txt` to be sure.
 
+### Display changes but shows nothing meaningful
+
+If the backlight or something changes but you don’t see a clear image:
+
+1. **Run the LCD test script** (on the Pi) to cycle solid red, green, blue, white and draw a simple pattern:
+   ```bash
+   python scripts/test_lcd.py
+   ```
+   If you see solid colors and a rectangle/border, wiring and SPI are fine; try rotation (below). If you see nothing, double-check wiring and SPI.
+
+2. **Try rotation** – Many boards are mounted 180° or 90°. Set before running the app or test script:
+   ```bash
+   export LCD_ROTATION=180
+   python scripts/test_lcd.py
+   # or
+   python -m src.app.main --backend device --test screen
+   ```
+   Use `0`, `90`, `180`, or `270` until the image is right-side up.
+
+3. **Colors wrong (e.g. red/blue swapped)** – The driver uses RGB; some panels expect BGR. If needed, we can add a BGR option to the LCD hardware.
+
 ## Project Structure
 
 ```
