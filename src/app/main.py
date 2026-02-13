@@ -159,7 +159,6 @@ def ensure_sprites_with_progress(project_root: Path = None, ui=None) -> bool:
             logger.info(f"Downloading {animal_type}/{filename}... {status}")
             if ui is not None:
                 try:
-                    from src.app.display_content import DisplayContent
                     # Update UI with current download status
                     progress_text = f"Downloading\n{animal_type}..."
                     if status == "success":
@@ -185,7 +184,6 @@ def ensure_sprites_with_progress(project_root: Path = None, ui=None) -> bool:
             logger.info("All sprites are present")
             if ui is not None:
                 try:
-                    from src.app.display_content import DisplayContent
                     loading_content = DisplayContent(
                         mode="voice",
                         color=(0, 255, 0),  # Green text
@@ -329,7 +327,6 @@ def main():
     
     # Show initial loading screen
     if args.backend == "desktop":
-        from src.app.display_content import DisplayContent
         loading_content = DisplayContent(
             mode="voice",
             color=(255, 255, 255),
