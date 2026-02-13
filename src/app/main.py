@@ -520,8 +520,7 @@ def main():
                     # Mic test: level from background thread, no blocking
                     content = interaction.generate_display_content()
                     lcd.update_display(content)
-                    if args.backend == "desktop":
-                        ui.render(content)
+                    ui.render(content)  # required for device LCD and for fallback desktop window
                     time.sleep(0.02)  # ~50 FPS; level updates in background
                 elif sensor_type == "farm":
                     word = interaction.recognize_word()

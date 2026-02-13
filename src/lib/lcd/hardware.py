@@ -214,17 +214,20 @@ class LCDHardware(LCDInterface):
         return start_x, start_y, scaled_w, scaled_h
 
     def _render_level_bar(self, content: DisplayContent) -> None:
-        """Render a horizontal level/amplitude bar (0–1)."""
+        """Render a horizontal level/amplitude bar (0–1) with visible track."""
         level = getattr(content, "level", 0.0) or 0.0
         level = max(0.0, min(1.0, level))
         W, H = self._width, self._height
         bar_width = int(W * 0.8)
-        bar_height = max(4, H // 20)
+        bar_height = max(6, H // 16)
         bar_x = (W - bar_width) // 2
         bar_y = H - bar_height - (H // 10)
-        bg_color = self._rgb_to_565((60, 60, 60))
+        track_color = self._rgb_to_565((80, 80, 80))  # visible track
         fill_color = self._rgb_to_565(content.color)
-        self._display.fill_rectangle(bar_x, bar_y, bar_width, bar_height, bg_color)
+        border_color = self._rgb_to_565((120, 120, 120))
+        # Border so bar area is visible even at level 0
+        self._display.fill_rectangle(bar_x - 1, bar_y - 1, bar_width + 2, bar_height + 2, border_color)
+        self._display.fill_rectangle(bar_x, bar_y, bar_width, bar_height, track_color)
         fill_width = int(bar_width * level)
         if fill_width > 0:
             self._display.fill_rectangle(bar_x, bar_y, fill_width, bar_height, fill_color)
