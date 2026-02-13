@@ -162,16 +162,13 @@ class LCDHardware(LCDInterface):
             start_x, start_y, scaled_w, scaled_h = self._scaled_image_rect(image_width, image_height)
             scale = scaled_w // image_width
 
+            # Use fill_rectangle per source pixel (one rect per block) instead of pixel-by-pixel
             for y, row in enumerate(image_data):
                 for x, pixel in enumerate(row):
                     pixel_color = self._rgb_to_565(pixel)
                     bx = start_x + x * scale
                     by = start_y + y * scale
-                    for dy in range(scale):
-                        for dx in range(scale):
-                            px, py = bx + dx, by + dy
-                            if 0 <= px < display_width and 0 <= py < display_height:
-                                self._display.pixel(px, py, pixel_color)
+                    self._display.fill_rectangle(bx, by, scale, scale, pixel_color)
         except Exception as e:
             raise HardwareError(f"Failed to render image: {e}")
     
