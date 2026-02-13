@@ -2,9 +2,22 @@
 adafruit-circuitpython-rgb-display>=2.2.0
 adafruit-blinka>=8.0.0
 gpiozero>=1.6.2
+sparkfun-qwiic-icm20948>=2.0.0  # IMU (ICM-20948) over I2C; Pi: enable I2C in raspi-config
 
 # UI for desktop prototyping
 pygame>=2.5.0
+
+# Speech recognition and audio
+vosk>=0.3.44
+pyaudio>=0.2.14
+numpy>=1.24.0,<2.0.0  # Pin to NumPy 1.x for compatibility with scipy/sklearn/torch
+
+# Image embeddings for vector matching
+sentence-transformers>=2.2.0
+scikit-learn>=1.3.0
+
+# Image processing (for LCD rendering)
+Pillow>=10.0.0
 
 # Testing
 pytest>=7.4.0
