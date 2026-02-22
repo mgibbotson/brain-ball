@@ -17,6 +17,20 @@ logger = logging.getLogger(__name__)
 # Fallback animal keys when backend is unreachable (FR-011: show error + random animal)
 RANDOM_ANIMAL_KEYS = ["bird", "dog", "cat", "cow", "pig", "chicken"]
 
+# Lightweight fallback when backend is not set (no on-device embedding model).
+# Full text-to-animal is done by the word2animal service when BRAIN_BALL_API_URL is set.
+FALLBACK_WORD_TO_ANIMAL = {
+    "moo": "cow", "cow": "cow", "cattle": "cow", "bovine": "cow",
+    "oink": "pig", "pig": "pig", "swine": "pig", "hog": "pig",
+    "cluck": "chicken", "chicken": "chicken", "hen": "chicken", "rooster": "chicken", "bawk": "chicken",
+    "baa": "sheep", "sheep": "sheep", "lamb": "sheep", "bleat": "sheep",
+    "neigh": "horse", "horse": "horse", "pony": "horse", "whinny": "horse",
+    "quack": "duck", "duck": "duck",
+    "goat": "goat", "kid": "goat",
+    "woof": "dog", "bark": "dog", "dog": "dog", "puppy": "dog", "pup": "dog",
+    "meow": "cat", "cat": "cat", "kitten": "cat", "kitty": "cat", "purr": "cat",
+}
+
 # Vosk model path (user should download and place model here)
 DEFAULT_VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "vosk-model")
 
@@ -214,22 +228,20 @@ class VoiceInteraction:
     
     def find_closest_image(self, word: str) -> Optional[str]:
         """
-        Find closest image using vector distance matching.
-        
-        Parameters:
-            word: Recognized word to match
-            
-        Returns:
-            str: Image key of closest match, or None if no match above threshold
+        Resolve word to an animal/image key. Uses backend when available;
+        otherwise uses optional on-device embeddings or a lightweight fallback map.
         """
-        if not self.image_embeddings:
+        if not word:
             return None
-        
-        try:
-            return self.image_embeddings.find_closest_image(word)
-        except Exception as e:
-            logger.error(f"Failed to find closest image: {e}")
+        key = word.strip().lower()
+        if not key:
             return None
+        if self.image_embeddings:
+            try:
+                return self.image_embeddings.find_closest_image(word)
+            except Exception as e:
+                logger.error("On-device embedding lookup failed: %s", e)
+        return FALLBACK_WORD_TO_ANIMAL.get(key)
     
     def generate_display_content(
         self,

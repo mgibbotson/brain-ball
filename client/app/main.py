@@ -19,7 +19,6 @@ from client.ui.device import UIDevice
 from client.app.light_interaction import LightInteraction
 from client.app.imu_interaction import IMUInteraction
 from client.app.voice_interaction import VoiceInteraction
-from client.app.image_embeddings import create_farm_animal_embeddings
 from client.app.display_content import DisplayContent
 from client.app.pixel_art import get_pixel_art_image
 from client.lib import HardwareError
@@ -412,34 +411,13 @@ def main():
         if sensor_type == "imu":
             interaction = IMUInteraction(imu=sensor)
         elif sensor_type == "mic" or sensor_type == "farm":
-            # Show loading screen for farm mode (embedding model takes time to load)
-            if sensor_type == "farm" and args.backend == "desktop":
-                loading_content = DisplayContent(
-                    mode="voice",
-                    color=(255, 255, 0),  # Yellow text
-                    background_color=(32, 32, 32),
-                    text="Loading AI model..."
-                )
-                ui.render(loading_content)
-                ui.update()
-                logger.info("Loading embedding model (this may take a moment)...")
-            
-            # Create image embeddings for farm mode
-            image_embeddings = None
-            if sensor_type == "farm":
-                try:
-                    image_embeddings = create_farm_animal_embeddings()
-                    logger.info("Embedding model loaded successfully")
-                except Exception as e:
-                    logger.warning(f"Failed to create image embeddings: {e}")
-                    logger.info("Continuing with text-only mode")
-            
-            # Create voice interaction
+            # Text-to-animal runs on backend (word2animal service) when BRAIN_BALL_API_URL is set;
+            # otherwise a lightweight fallback map is used. No on-device embedding model.
             enable_images = (sensor_type == "farm")
             interaction = VoiceInteraction(
                 microphone=sensor,
                 lcd=lcd,
-                image_embeddings=image_embeddings,
+                image_embeddings=None,
                 enable_images=enable_images
             )
             
