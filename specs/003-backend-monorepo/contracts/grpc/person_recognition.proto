@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package brainball.personrecognition;
+
+option go_package = "brainball/personrecognition";
+
+// PersonRecognition is the gRPC service for identifying or enrolling a person from voice.
+// Called by the API gateway (Go); client does not call this directly.
+// First-use auto-enrollment: first time a voice is seen, backend creates an identity (e.g. person_1).
+// Voice-derived data retained up to 1GB; eviction when at cap.
+service PersonRecognition {
+  rpc IdentifyOrEnroll(IdentifyRequest) returns (IdentifyResponse);
+}
+
+message IdentifyRequest {
+  oneof input {
+    bytes audio_pcm = 1;           // raw audio; format/sample rate TBD
+    VoiceEmbedding embedding = 2;  // precomputed embedding
+  }
+}
+
+message VoiceEmbedding {
+  repeated float values = 1;
+}
+
+message IdentifyResponse {
+  string person_id = 1;  // e.g. "person_1" or "" for unknown
+  bool is_new = 2;       // true if this request created a new identity
+}

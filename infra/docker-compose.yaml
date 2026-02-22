@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: ../backend/api
+      dockerfile: Dockerfile
+    image: brainball/api:latest
+    ports:
+      - "8080:8080"
+    environment:
+      HTTP_ADDR: ":8080"
+      WORD2ANIMAL_GRPC_ADDR: "word2animal:50051"
+    depends_on:
+      word2animal:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  word2animal:
+    build:
+      context: ../backend/services/word2animal
+      dockerfile: Dockerfile
+    image: brainball/word2animal:latest
+    ports:
+      - "50051:50051"
+      - "50052:50052"
+    environment:
+      GRPC_PORT: "50051"
+      HEALTH_PORT: "50052"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:50052/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

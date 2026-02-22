@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: word2animal
+  labels:
+    app: word2animal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: word2animal
+  template:
+    metadata:
+      labels:
+        app: word2animal
+    spec:
+      containers:
+        - name: word2animal
+          image: brainball/word2animal:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 50051
+              name: grpc
+            - containerPort: 50052
+              name: health
+          env:
+            - name: GRPC_PORT
+              value: "50051"
+            - name: HEALTH_PORT
+              value: "50052"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 50052
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 50052
+            initialDelaySeconds: 5
+            periodSeconds: 5

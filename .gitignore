@@ -37,6 +37,12 @@ htmlcov/
 .env
 .env.local
 
+# Go
+*.exe
+*.test
+vendor/
+*.out
+
 # Project specific
 *.pyc
 .pytest_cache/

@@ -1,15 +1,15 @@
 """Unit tests for light interaction logic."""
 
 import pytest
-from src.app.light_interaction import LightInteraction
-from src.app.light_state import LightState
-from src.app.display_content import DisplayContent
+from client.app.light_interaction import LightInteraction
+from client.app.light_state import LightState
+from client.app.display_content import DisplayContent
 
 
 def test_light_interaction_initialization():
     """Test that LightInteraction can be initialized with hardware."""
-    from src.lib.photoresistor.mock import PhotoresistorMock
-    from src.lib.lcd.mock import LCDMock
+    from client.lib.photoresistor.mock import PhotoresistorMock
+    from client.lib.lcd.mock import LCDMock
     
     photo = PhotoresistorMock()
     lcd = LCDMock()
@@ -22,8 +22,8 @@ def test_light_interaction_initialization():
 
 def test_light_interaction_update_light_state():
     """Test that update_light_state() reads from photoresistor."""
-    from src.lib.photoresistor.mock import PhotoresistorMock
-    from src.lib.lcd.mock import LCDMock
+    from client.lib.photoresistor.mock import PhotoresistorMock
+    from client.lib.lcd.mock import LCDMock
     
     photo = PhotoresistorMock()
     photo.set_light_value(50000)
@@ -38,8 +38,8 @@ def test_light_interaction_update_light_state():
 
 def test_light_interaction_generate_display_content():
     """Test that generate_display_content() creates content from light state."""
-    from src.lib.photoresistor.mock import PhotoresistorMock
-    from src.lib.lcd.mock import LCDMock
+    from client.lib.photoresistor.mock import PhotoresistorMock
+    from client.lib.lcd.mock import LCDMock
     
     photo = PhotoresistorMock()
     lcd = LCDMock()
@@ -63,8 +63,8 @@ def test_light_interaction_generate_display_content():
 
 def test_light_interaction_update_display():
     """Test that update_display() updates LCD with content."""
-    from src.lib.photoresistor.mock import PhotoresistorMock
-    from src.lib.lcd.mock import LCDMock
+    from client.lib.photoresistor.mock import PhotoresistorMock
+    from client.lib.lcd.mock import LCDMock
     
     photo = PhotoresistorMock()
     photo.set_light_value(50000)

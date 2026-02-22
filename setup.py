@@ -18,7 +18,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "brain-ball=src.app.main:main",
+            "brain-ball=client.app.main:main",
         ],
     },
 )

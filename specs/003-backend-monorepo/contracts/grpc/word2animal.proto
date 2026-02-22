@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package brainball.word2animal;
+
+option go_package = "brainball/word2animal";
+
+// Word2Animal is the gRPC service for mapping text to an animal identifier.
+// Called by the API gateway (Go); client does not call this directly.
+service Word2Animal {
+  // GetAnimal returns the animal identifier for the given text.
+  rpc GetAnimal(GetAnimalRequest) returns (GetAnimalResponse);
+}
+
+message GetAnimalRequest {
+  string text = 1;
+}
+
+message GetAnimalResponse {
+  string animal = 1;       // e.g. "bird", "dog"
+  float confidence = 2;     // optional; 0-1
+}

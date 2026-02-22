@@ -49,7 +49,7 @@ An interactive embedded device application where children interact with sensors 
 For the **1.28" 240x240 Round TFT (GC9A01A, EYESPI)** use the same SPI pins; set before running:
 `export DISPLAY_TYPE=gc9a01a`
 
-*Pin assignments are in `src/lib/lcd/hardware.py`; adjust there if your wiring differs.*
+*Pin assignments are in `client/lib/lcd/hardware.py`; adjust there if your wiring differs.*
 
 **IMU (SparkFun 9DoF ICM-20948, Qwiic):**
 - GND → GND
@@ -108,7 +108,7 @@ Enable **I2C**: `sudo raspi-config` → Interface Options → I2C → Yes, then 
    
    **Note for macOS users**: If `pyaudio` installation fails, ensure PortAudio is installed first (see Prerequisites above).
    
-   The `-e` flag installs the package in "editable" mode, allowing Python to find the `src` module.
+   The `-e` flag installs the package in "editable" mode, allowing Python to find the `client` module.
 
    **Raspberry Pi: low disk space**  
    If `pip install -r requirements.txt` fails with `OSError: [Errno 28] No space left on device` (e.g. when downloading scipy), either free space or use the minimal device requirements (no voice→image farm mode on device):
@@ -160,29 +160,36 @@ Enable **I2C**: `sudo raspi-config` → Interface Options → I2C → Yes, then 
 
 **On Device (Raspberry Pi)**:
 ```bash
-python -m src.app.main --backend device
+python -m client.app.main --backend device
 # Or: brain-ball --backend device
 ```
 
 **On Desktop (Prototyping)**:
 ```bash
-python -m src.app.main --backend desktop
+python -m client.app.main --backend desktop
 # Or: brain-ball --backend desktop
 ```
+
+**Backend API (text-to-animal)**: To offload text-to-animal to the backend, set the backend base URL and run the client. When the backend is unreachable, the client shows "Backend unavailable" and a random animal (FR-011).
+```bash
+export BRAIN_BALL_API_URL=http://<host-ip>:8080   # e.g. http://192.168.1.100:8080
+python -m client.app.main --backend desktop --test farm
+```
+See `specs/003-backend-monorepo/quickstart.md` for same-LAN setup.
 
 **Voice Features** (requires Vosk model):
 ```bash
 # Speech-to-text only mode (test recognition)
-python -m src.app.main --backend desktop --test mic
+python -m client.app.main --backend desktop --test mic
 
 # Full pipeline: speech-to-text → image display
-python -m src.app.main --backend desktop --test farm
+python -m client.app.main --backend desktop --test farm
 
 # Cycle through 10 animal images (screen test)
-python -m src.app.main --backend desktop --test screen
+python -m client.app.main --backend desktop --test screen
 ```
 
-**Note**: Use `python -m src.app.main` instead of `python src/app/main.py` to ensure Python can find the `src` module. Alternatively, use the `brain-ball` command after installing with `pip install -e .`.
+**Note**: Use `python -m client.app.main` instead of `python client/app/main.py` to ensure Python can find the `client` module. Alternatively, use the `brain-ball` command after installing with `pip install -e .`.
 
 ### Raspberry Pi: LCD / SPI errors
 
@@ -215,7 +222,7 @@ If the backlight or something changes but you don’t see a clear image:
    export LCD_ROTATION=180
    python scripts/test_lcd.py
    # or
-   python -m src.app.main --backend device --test screen
+   python -m client.app.main --backend device --test screen
    ```
    Use `0`, `90`, `180`, or `270` until the image is right-side up.
 
@@ -224,7 +231,7 @@ If the backlight or something changes but you don’t see a clear image:
 ## Project Structure
 
 ```
-src/
+client/
 ├── lib/           # Hardware abstraction libraries
 ├── ui/            # UI backends (desktop + device)
 ├── app/           # Application logic

@@ -1,0 +1,156 @@
+openapi: 3.0.3
+info:
+  title: Brain Ball Backend API
+  description: REST API for client–backend. Client calls this API for text-to-animal (and later person recognition). Speech-to-text remains on-device.
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local backend (configurable base URL; client on same LAN)
+
+paths:
+  /health:
+    get:
+      summary: Liveness
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is alive
+  /ready:
+    get:
+      summary: Readiness
+      operationId: getReady
+      description: Returns 200 when API and downstream gRPC services are ready to accept traffic
+      responses:
+        '200':
+          description: Ready to accept traffic
+        '503':
+          description: Not ready (e.g. downstream services unavailable)
+
+  /v1/text-to-animal:
+    post:
+      summary: Get animal for text
+      operationId: textToAnimal
+      description: Sends recognized text (e.g. from speech-to-text on device); returns animal identifier for display. Round-trip target ≤ 2s under normal LAN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextToAnimalRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextToAnimalResponse'
+        '400':
+          description: Validation error (e.g. empty or invalid text)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Backend service unavailable (e.g. word2animal down)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Person recognition: later release
+  /v1/person-recognition:
+    post:
+      summary: Identify or enroll person from voice (later release)
+      operationId: personRecognition
+      description: Sends voice or voice-derived data; returns person_id (first-use auto-enrollment) or unknown. Not required for first release.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonRecognitionRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonRecognitionResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    TextToAnimalRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Word or phrase from speech-to-text (e.g. "beak", "fur")
+        person_id:
+          type: string
+          nullable: true
+          description: Optional; for future personalization. Omit in first release.
+
+    TextToAnimalResponse:
+      type: object
+      required:
+        - animal
+      properties:
+        animal:
+          type: string
+          description: Stable identifier/label (e.g. "bird", "dog") for client to map to images
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Optional; for future use
+
+    PersonRecognitionRequest:
+      type: object
+      description: Later release
+      properties:
+        embedding:
+          type: array
+          items:
+            type: number
+            format: float
+          description: Precomputed voice embedding (alternative to raw audio)
+        audio_base64:
+          type: string
+          description: Raw audio (e.g. PCM) as base64; format TBD
+
+    PersonRecognitionResponse:
+      type: object
+      description: Later release
+      properties:
+        person_id:
+          type: string
+          description: Stable anonymous id (e.g. "person_1") or empty/"unknown"
+        is_new:
+          type: boolean
+          description: True if this request created a new identity (first-use auto-enrollment)
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string

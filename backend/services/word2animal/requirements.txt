@@ -1,0 +1,6 @@
+# gRPC server and codegen
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+
+# Minimal ML runtime for first release (stub or simple model)
+scikit-learn>=1.3.0

@@ -1,0 +1,3 @@
+# gRPC server and codegen (later release)
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
